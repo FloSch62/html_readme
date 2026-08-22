@@ -1489,23 +1489,23 @@ spec:
 
         <h3 style="margin-top:42px">Implementation anchors used for this explainer</h3>
         <div class="source-list">
-          <a class="source-link" href="./clabernetes/apis/v1alpha1/node.go"><span>apis/v1alpha1/node.go</span><small>Node shape, direct status, conditions</small></a>
-          <a class="source-link" href="./clabernetes/apis/v1alpha1/link.go"><span>apis/v1alpha1/link.go</span><small>Link endpoints, allocation, UIDs, host finalizer</small></a>
-          <a class="source-link" href="./clabernetes/controllers/node/direct.go"><span>controllers/node/direct.go</span><small>End-to-end direct reconciliation pipeline</small></a>
-          <a class="source-link" href="./clabernetes/internal/deviceplan/registry.go"><span>internal/deviceplan/registry.go</span><small>Containerlab live kind registry and RegisterNodes</small></a>
-          <a class="source-link" href="./clabernetes/internal/deviceplan/adapter.go"><span>internal/deviceplan/adapter.go</span><small>Imported Containerlab hooks and recording runtime</small></a>
-          <a class="source-link" href="./clabernetes/internal/deviceplan/mapper.go"><span>internal/deviceplan/mapper.go</span><small>Imported behavior → runtime-neutral plan</small></a>
-          <a class="source-link" href="./clabernetes/internal/deviceplan/readiness.go"><span>internal/deviceplan/readiness.go</span><small>Imported Containerlab IsHealthy probe</small></a>
-          <a class="source-link" href="./clabernetes/internal/directpod/renderer.go"><span>internal/directpod/renderer.go</span><small>Direct Deployment, helpers, containers, volumes</small></a>
-          <a class="source-link" href="./clabernetes/internal/directruntime/connectivity.go"><span>internal/directruntime/connectivity.go</span><small>Sidecar reconcile loop: revisions, fabric, mesh, re-assertion</small></a>
-          <a class="source-link" href="./clabernetes/internal/directruntime/interposition.go"><span>internal/directruntime/interposition.go</span><small>Interface names, policy routing, interposition invariants</small></a>
-          <a class="source-link" href="./clabernetes/internal/directruntime/fabric_linux.go"><span>internal/directruntime/fabric_linux.go</span><small>In-Pod stitched VXLAN cables and host-Link placement</small></a>
-          <a class="source-link" href="./clabernetes/internal/directruntime/nat_linux.go"><span>internal/directruntime/nat_linux.go</span><small>The c9s-interposition nftables translation table</small></a>
-          <a class="source-link" href="./clabernetes/controllers/node/directmanagement.go"><span>controllers/node/directmanagement.go</span><small>Management allocation, defaults, mesh VNI + gateway MAC</small></a>
-          <a class="source-link" href="./clabernetes/openspec/changes/archive/2026-08-21-direct-node-pods/design.md"><span>openspec/…/2026-08-21-direct-node-pods/design.md</span><small>Change 1: the direct runtime itself</small></a>
-          <a class="source-link" href="./clabernetes/openspec/changes/archive/2026-08-21-sidecar-mgmt-interposition/design.md"><span>openspec/…/2026-08-21-sidecar-mgmt-interposition/design.md</span><small>Change 2: daemonless sidecar ownership + interposition</small></a>
-          <a class="source-link" href="./clabernetes/openspec/changes/archive/2026-08-21-management-l2-mesh/design.md"><span>openspec/…/2026-08-21-management-l2-mesh/design.md</span><small>Change 3: the shared L2 management domain</small></a>
-          <a class="source-link" href="./clabernetes/openspec/changes/archive/2026-08-21-retire-launcher-era-surface/design.md"><span>openspec/…/2026-08-21-retire-launcher-era-surface/design.md</span><small>Change 4: NodeProfile rename and surface cleanup</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/apis/v1alpha1/node.go"><span>apis/v1alpha1/node.go</span><small>Node shape, direct status, conditions</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/apis/v1alpha1/link.go"><span>apis/v1alpha1/link.go</span><small>Link endpoints, allocation, UIDs, host finalizer</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/controllers/node/direct.go"><span>controllers/node/direct.go</span><small>End-to-end direct reconciliation pipeline</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/deviceplan/registry.go"><span>internal/deviceplan/registry.go</span><small>Containerlab live kind registry and RegisterNodes</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/deviceplan/adapter.go"><span>internal/deviceplan/adapter.go</span><small>Imported Containerlab hooks and recording runtime</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/deviceplan/mapper.go"><span>internal/deviceplan/mapper.go</span><small>Imported behavior → runtime-neutral plan</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/deviceplan/readiness.go"><span>internal/deviceplan/readiness.go</span><small>Imported Containerlab IsHealthy probe</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/directpod/renderer.go"><span>internal/directpod/renderer.go</span><small>Direct Deployment, helpers, containers, volumes</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/directruntime/connectivity.go"><span>internal/directruntime/connectivity.go</span><small>Sidecar reconcile loop: revisions, fabric, mesh, re-assertion</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/directruntime/interposition.go"><span>internal/directruntime/interposition.go</span><small>Interface names, policy routing, interposition invariants</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/directruntime/fabric_linux.go"><span>internal/directruntime/fabric_linux.go</span><small>In-Pod stitched VXLAN cables and host-Link placement</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/directruntime/nat_linux.go"><span>internal/directruntime/nat_linux.go</span><small>The c9s-interposition nftables translation table</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/controllers/node/directmanagement.go"><span>controllers/node/directmanagement.go</span><small>Management allocation, defaults, mesh VNI + gateway MAC</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/openspec/changes/archive/2026-08-21-direct-node-pods/design.md"><span>openspec/…/2026-08-21-direct-node-pods/design.md</span><small>Change 1: the direct runtime itself</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/openspec/changes/archive/2026-08-21-sidecar-mgmt-interposition/design.md"><span>openspec/…/2026-08-21-sidecar-mgmt-interposition/design.md</span><small>Change 2: daemonless sidecar ownership + interposition</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/openspec/changes/archive/2026-08-21-management-l2-mesh/design.md"><span>openspec/…/2026-08-21-management-l2-mesh/design.md</span><small>Change 3: the shared L2 management domain</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/openspec/changes/archive/2026-08-21-retire-launcher-era-surface/design.md"><span>openspec/…/2026-08-21-retire-launcher-era-surface/design.md</span><small>Change 4: NodeProfile rename and surface cleanup</small></a>
         </div>
       </div>
     </section>
