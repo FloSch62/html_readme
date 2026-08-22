@@ -320,11 +320,24 @@
       background: color-mix(in srgb, var(--surface-solid) 92%, transparent);
       box-shadow: var(--shadow);
     }
-    .diagram-title { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+    .diagram-title { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
     .diagram-title b { font-size: .98rem; }
-    .diagram-title span { color: var(--faint); font-size: .76rem; }
+    .diagram-title span { color: var(--faint); font-size: .76rem; align-self: center; }
+    .diagram-tools { display: inline-flex; flex: 0 0 auto; gap: 6px; margin-left: auto; }
+    .diagram-tools button {
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--code);
+      color: var(--teal);
+      cursor: pointer;
+      font: 700 .95rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .diagram-tools button:hover { border-color: var(--border-strong); color: var(--text); }
     .mermaid { min-width: 720px; display: grid; place-items: center; }
-    .mermaid svg { max-width: 100%; height: auto; }
+    .mermaid svg { max-width: 100%; height: auto; touch-action: pan-y; cursor: grab; }
+    .mermaid svg:active { cursor: grabbing; }
 
     .compare { display: grid; grid-template-columns: 1fr 54px 1fr; gap: 14px; align-items: stretch; margin: 28px 0; }
     .compare-card { padding: 24px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
@@ -444,7 +457,7 @@
     @media print {
       :root, html[data-theme="light"] { --bg: #fff; --surface: #fff; --surface-solid: #fff; --surface-2: #f5f7f7; --text: #102c34; --muted: #405a62; --faint: #63777d; --border: #ccd8da; --code: #f5f7f7; }
       body { background: #fff; }
-      body::before, .topbar, .progress, .theme-button, .copy-button { display: none !important; }
+      body::before, .topbar, .progress, .theme-button, .copy-button, .diagram-tools { display: none !important; }
       .hero { min-height: auto; padding-top: 28px; }
       section { break-inside: auto; }
       .card, .diagram, .table-wrap, .code-block, .callout { break-inside: avoid; box-shadow: none; }
@@ -954,8 +967,9 @@ flowchart TD
             <div class="diagram" style="margin-top:0">
               <div class="diagram-title"><b>One cable between two Pods</b><span>everything shown here lives inside a Pod network namespace</span></div>
               <pre class="mermaid">
-flowchart LR
+flowchart TB
   subgraph pa["Pod r1 network namespace"]
+    direction LR
     r1["r1 application"]
     e1["e1-1<br/> device leg"]
     sa["c9ss·hash<br/> sidecar stitch leg"]
@@ -967,6 +981,7 @@ flowchart LR
     va --- ua
   end
   subgraph pb["Pod r2 network namespace"]
+    direction LR
     ub["c9s0<br/> preserved CNI interface"]
     vb["c9sx·hash VTEP<br/> VNI 42 · UDP 14789"]
     sb["c9ss·hash<br/> sidecar stitch leg"]
@@ -977,7 +992,7 @@ flowchart LR
     sb ===|"veth pair"| e2
     e2 --- r2
   end
-  ua == "ordinary Pod-to-Pod traffic<br/> Ethernet wrapped in VXLAN, carried by the CNI" ==> ub
+  pa == "c9s0 ↔ c9s0 · ordinary Pod-to-Pod traffic<br/> Ethernet wrapped in VXLAN, carried by the CNI" ==> pb
 
   classDef device fill:#2d2449,stroke:#b598ff,color:#edf7f8;
   classDef sidecar fill:#173a34,stroke:#61e6cf,color:#edf7f8;
@@ -1559,25 +1574,115 @@ spec:
       };
     }
 
-    async function renderMermaid() {
-      if (!mermaid) return;
-      mermaid.initialize(mermaidConfig());
-      for (const node of mermaidNodes) {
+    function setupDiagramControls(node) {
+      const svg = node.querySelector('svg');
+      const viewBoxAttr = svg?.getAttribute('viewBox');
+      if (!viewBoxAttr) return;
+      const home = viewBoxAttr.split(/[\s,]+/).map(Number);
+      let view = [...home];
+      const apply = () => svg.setAttribute('viewBox', view.join(' '));
+
+      // cx/cy are the zoom focus as fractions of the svg element (0..1).
+      const zoomAt = (factor, cx, cy) => {
+        const width = Math.max(home[2] / 20, Math.min(home[2] * 8, view[2] / factor));
+        const height = view[3] * (width / view[2]);
+        view = [view[0] + (view[2] - width) * cx, view[1] + (view[3] - height) * cy, width, height];
+        apply();
+      };
+      const focus = (event) => {
+        const rect = svg.getBoundingClientRect();
+        return [(event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height];
+      };
+
+      let drag = null;
+      svg.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        drag = { x: event.clientX, y: event.clientY, view: [...view] };
+        svg.setPointerCapture(event.pointerId);
+      });
+      svg.addEventListener('pointermove', (event) => {
+        if (!drag) return;
+        const rect = svg.getBoundingClientRect();
+        view[0] = drag.view[0] - (event.clientX - drag.x) * (view[2] / rect.width);
+        view[1] = drag.view[1] - (event.clientY - drag.y) * (view[3] / rect.height);
+        apply();
+      });
+      const endDrag = () => { drag = null; };
+      svg.addEventListener('pointerup', endDrag);
+      svg.addEventListener('pointercancel', endDrag);
+
+      // Plain scroll keeps scrolling the page; ctrl/cmd+wheel (and trackpad pinch) zooms.
+      svg.addEventListener('wheel', (event) => {
+        if (!event.ctrlKey && !event.metaKey) return;
+        event.preventDefault();
+        zoomAt(event.deltaY < 0 ? 1.18 : 1 / 1.18, ...focus(event));
+      }, { passive: false });
+      svg.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        zoomAt(1.6, ...focus(event));
+      });
+
+      const title = node.closest('.diagram')?.querySelector('.diagram-title');
+      if (!title) return;
+      title.querySelector('.diagram-tools')?.remove();
+      const tools = document.createElement('div');
+      tools.className = 'diagram-tools';
+      for (const [label, hint, action] of [
+        ['+', 'Zoom in (ctrl+scroll or double-click the diagram)', () => zoomAt(1.3, 0.5, 0.5)],
+        ['−', 'Zoom out', () => zoomAt(1 / 1.3, 0.5, 0.5)],
+        ['⟲', 'Reset view (drag the diagram to pan)', () => { view = [...home]; apply(); }],
+      ]) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.title = hint;
+        button.setAttribute('aria-label', hint);
+        button.addEventListener('click', action);
+        tools.append(button);
+      }
+      title.append(tools);
+    }
+
+    // Renders only diagrams that are pending AND visible. Diagrams inside a hidden tab panel
+    // would be measured against a display:none container and come out broken, so they wait
+    // until their tab is shown.
+    async function renderVisibleNodes() {
+      const pending = mermaidNodes.filter(
+        (node) => node.dataset.rendered !== 'yes' && node.offsetParent !== null,
+      );
+      if (!mermaid || !pending.length) return;
+      for (const node of pending) {
         node.removeAttribute('data-processed');
         node.innerHTML = node.dataset.source;
       }
       try {
-        await mermaid.run({ nodes: mermaidNodes, suppressErrors: false });
-        if (location.hash) {
-          setTimeout(() => {
-            const target = document.getElementById(location.hash.slice(1));
-            if (target) {
-              window.scrollTo({ top: Math.max(0, target.offsetTop - 78), behavior: 'instant' });
-            }
-          }, 50);
+        await mermaid.run({ nodes: pending, suppressErrors: false });
+        for (const node of pending) {
+          node.dataset.rendered = 'yes';
+          setupDiagramControls(node);
         }
       } catch (error) {
         console.error('Mermaid rendering failed:', error);
+      }
+    }
+
+    async function renderMermaid() {
+      if (!mermaid) return;
+      mermaid.initialize(mermaidConfig());
+      for (const node of mermaidNodes) {
+        node.dataset.rendered = 'no';
+        node.removeAttribute('data-processed');
+        node.innerHTML = node.dataset.source;
+      }
+      await renderVisibleNodes();
+      if (location.hash) {
+        setTimeout(() => {
+          const target = document.getElementById(location.hash.slice(1));
+          if (target) {
+            window.scrollTo({ top: Math.max(0, target.offsetTop - 78), behavior: 'instant' });
+          }
+        }, 50);
       }
     }
 
@@ -1601,6 +1706,7 @@ spec:
         button.addEventListener('click', () => {
           buttons.forEach((item) => item.setAttribute('aria-selected', String(item === button)));
           panels.forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === button.dataset.tab));
+          renderVisibleNodes();
         });
       });
     });
