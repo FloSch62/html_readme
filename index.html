@@ -475,6 +475,7 @@
         <a href="#api">Pieces</a>
         <a href="#planning">Build</a>
         <a href="#pod">Pod</a>
+        <a href="#sidecar">Sidecar</a>
         <a href="#links">Wires</a>
         <a href="#management">Mgmt &amp; mesh</a>
         <a href="#updates">Changes</a>
@@ -492,7 +493,7 @@
           <div>
             <span class="eyebrow">branch direct-c9s · HEAD 11c5244</span>
             <h1>How the new <span>direct c9s</span> builds a lab.</h1>
-            <p class="hero-lead">We will follow two routers and one cable—from YAML, to Pods, to traffic crossing Kubernetes workers—and stop at each part to see what it does.</p>
+            <p class="hero-lead">We will follow two routers and one cable, from YAML to Pods to traffic crossing Kubernetes workers, and stop at each part to see what it does.</p>
           </div>
           <aside class="hero-note">
             <div class="label">The short version</div>
@@ -504,7 +505,7 @@
           <div class="fact"><b>The router is the Pod</b><span>The NOS image is a normal Kubernetes container.</span></div>
           <div class="fact"><b>No Docker, no daemon</b><span>No dockerd inside, and no agent on any worker. All networking is Pod-local.</span></div>
           <div class="fact"><b>One cable = one Link</b><span>Links stay separate from Nodes and can change on their own.</span></div>
-          <div class="fact"><b>Management like containerlab</b><span>Allocated addresses on one shared L2 management domain—<code>172.20.20.0/24</code> by default.</span></div>
+          <div class="fact"><b>Management like containerlab</b><span>Allocated addresses on one shared L2 management domain, <code>172.20.20.0/24</code> by default.</span></div>
           <div class="fact"><b>Checks before ready</b><span>Files, wiring, containers, image health, TCP, and SSH can all be checked.</span></div>
         </div>
       </div>
@@ -549,16 +550,16 @@
           <pre class="mermaid">
 flowchart TB
   author["You apply YAML"]
-  topo["Topology<br/> (optional shortcut)"]
-  profile["NodeProfile<br/> Pod rules"]
-  nodes["Nodes<br/> the routers"]
-  links["Links<br/> the cables"]
+  topo["Topology&lt;br/&gt; (optional shortcut)"]
+  profile["NodeProfile&lt;br/&gt; Pod rules"]
+  nodes["Nodes&lt;br/&gt; the routers"]
+  links["Links&lt;br/&gt; the cables"]
   tc["Topology controller"]
   nc["Node controller"]
   lc["Link controller"]
-  plan["Device plan<br/> what this router needs"]
-  pod["Direct device Pod<br/> prepare + sidecar + router"]
-  cni["Cluster CNI<br/> ordinary Pod network"]
+  plan["Device plan&lt;br/&gt; what this router needs"]
+  pod["Direct device Pod&lt;br/&gt; prepare + sidecar + router"]
+  cni["Cluster CNI&lt;br/&gt; ordinary Pod network"]
   kubelet["kubelet + cluster CRI"]
 
   author --> topo
@@ -577,7 +578,7 @@ flowchart TB
   nc --> plan
   plan --> pod
   kubelet -->|"pull &amp; run device images"| pod
-  pod <-->|"VXLAN between Pod IPs<br/> cables + management mesh"| cni
+  pod <-->|"VXLAN between Pod IPs&lt;br/&gt; cables + management mesh"| cni
 
   classDef intent fill:#12364a,stroke:#69a9ff,color:#edf7f8;
   classDef control fill:#173a34,stroke:#61e6cf,color:#edf7f8;
@@ -599,7 +600,7 @@ flowchart TB
         </div>
 
         <div class="callout" style="margin-top:28px">
-          <strong>How this branch got here — four archived OpenSpec changes, in order:</strong>
+          <strong>How this branch got here: four archived OpenSpec changes, in order.</strong>
         </div>
         <div class="grid-4">
           <article class="card"><span class="card-number">1</span><div class="card-kicker">direct-node-pods</div><h3>The router becomes the Pod</h3><p>Removed the nested launcher runtime. Devices run as normal containers from a recorded, checked Containerlab plan. Cross-worker cables still used a per-worker daemon at this point.</p></article>
@@ -632,17 +633,17 @@ flowchart TB
           <pre class="mermaid">
 flowchart LR
   subgraph optional["OPTIONAL SHORTCUT"]
-    T["Topology<br/> one Containerlab-style file"]
+    T["Topology&lt;br/&gt; one Containerlab-style file"]
   end
   subgraph primary["THE PIECES THAT ACTUALLY RUN"]
-    P["NodeProfile<br/> Pod rules"]
+    P["NodeProfile&lt;br/&gt; Pod rules"]
     N1["Node r1"]
     N2["Node r2"]
     L["Link r1:e1 ↔ r2:e1"]
   end
   subgraph status["WHAT C9S REPORTS BACK"]
-    NS["Node status<br/> ready? · containers · exposed ports"]
-    LS["Link status<br/> accepted? · endpoints · tunnel number"]
+    NS["Node status&lt;br/&gt; ready? · containers · exposed ports"]
+    LS["Link status&lt;br/&gt; accepted? · endpoints · tunnel number"]
   end
 
   T -->|"compiles / owns"| P
@@ -682,7 +683,7 @@ flowchart LR
         </div>
 
         <div class="callout warning">
-          <strong>Two small rules matter:</strong> if a Node’s <code>profileRef</code> names a NodeProfile, that profile must exist in the same namespace—if it is missing, c9s waits and reports <code>NodeProfileResolved</code> false. And Links no longer carry a <code>connectivity</code> field: there is exactly one cross-Pod transport now, so there is nothing left to select.
+          <strong>Two small rules matter:</strong> if a Node’s <code>profileRef</code> names a NodeProfile, that profile must exist in the same namespace; if it is missing, c9s waits and reports <code>NodeProfileResolved</code> false. And Links no longer carry a <code>connectivity</code> field: there is exactly one cross-Pod transport now, so there is nothing left to select.
         </div>
       </div>
     </section>
@@ -715,7 +716,7 @@ sequenceDiagram
   C->>R: read image manifest and config only
   R-->>C: exact digest, command, env, healthcheck
   C->>W: make the full build sheet
-  Note over W: locked down<br/> no Kubernetes token<br/> no runtime socket
+  Note over W: locked down&lt;br/&gt; no Kubernetes token&lt;br/&gt; no runtime socket
   W-->>C: device plan or a clear error
   C->>C: check every item has a safe direct mapping
   C->>M: save the exact input and plan
@@ -725,7 +726,7 @@ sequenceDiagram
         </div>
 
         <div class="step-list">
-          <div class="step"><div><b>Collect everything about r1</b><span>The controller reads the Node, its NodeProfile, its files and Secrets, and every Link that touches it. It also allocates r1’s management identity right here—an address from the profile’s <code>mgmt</code> policy, or from containerlab’s default <code>172.20.20.0/24</code> when there is none—so the plan carries the finished management picture (device-leg name and MAC, gateway, inbound ports, mesh identity) as plain data.</span></div></div>
+          <div class="step"><div><b>Collect everything about r1</b><span>The controller reads the Node, its NodeProfile, its files and Secrets, and every Link that touches it. It also allocates r1’s management identity right here (an address from the profile’s <code>mgmt</code> policy, or from containerlab’s default <code>172.20.20.0/24</code> when there is none), so the plan carries the finished management picture (device-leg name and MAC, gateway, inbound ports, mesh identity) as plain data.</span></div></div>
           <div class="step"><div><b>Find all images</b><span>Some devices have several component images. c9s may ask more than once, but stops after eight rounds. It reads image metadata; only the kubelet downloads the layers.</span></div></div>
           <div class="step"><div><b>Let Containerlab describe the device</b><span>A short-lived Pod runs the pinned Containerlab 0.78.0 Go code and records what it asks for: containers, config files, mounts, privileges, commands, interfaces, and health checks.</span></div></div>
           <div class="step"><div><b>Check that Kubernetes can do all of it</b><span>Each recorded operation must have a safe direct implementation. If one does not, the Node stops here with a useful error instead of starting half-correctly.</span></div></div>
@@ -745,12 +746,12 @@ sequenceDiagram
           <div class="diagram-title"><b>Containerlab is the device expert inside c9s</b><span>the recording runtime is the translation layer</span></div>
           <pre class="mermaid">
 flowchart LR
-  input["r1 Node<br/> image facts + files + Links"]
-  registry["Containerlab node registry<br/> RegisterNodes()"]
-  node["real Containerlab kind object<br/> for example nokia_srlinux"]
-  recorder["c9s recording runtime<br/> answers questions and writes down requests"]
-  hooks["Containerlab methods<br/> Init · PreDeploy · Deploy · GetContainers"]
-  asks["recorded requests<br/> containers · files · mounts<br/> commands · privileges · checks"]
+  input["r1 Node&lt;br/&gt; image facts + files + Links"]
+  registry["Containerlab node registry&lt;br/&gt; RegisterNodes()"]
+  node["real Containerlab kind object&lt;br/&gt; for example nokia_srlinux"]
+  recorder["c9s recording runtime&lt;br/&gt; answers questions and writes down requests"]
+  hooks["Containerlab methods&lt;br/&gt; Init · PreDeploy · Deploy · GetContainers"]
+  asks["recorded requests&lt;br/&gt; containers · files · mounts&lt;br/&gt; commands · privileges · checks"]
   plan["c9s device plan"]
   pod["Kubernetes Deployment + Pod"]
 
@@ -822,25 +823,29 @@ sequenceDiagram
         <div class="grid-3">
           <article class="card"><div class="card-kicker">One path for every kind</div><h3>No vendor switch in c9s</h3><p>The same recorder handles every imported kind. If a future Containerlab kind asks for operations c9s already understands, it uses the same path without new vendor code.</p></article>
           <article class="card"><div class="card-kicker">Repeatable</div><h3>Same input, same plan</h3><p>Image digests, file information, certificates, interfaces, and settings are part of the input. Running the planner again must produce the same plan.</p></article>
-          <article class="card"><div class="card-kicker">Safe place to run package code</div><h3>The planner cannot launch anything</h3><p>It has no Docker or CRI socket, no host path, no Kubernetes token, and no privileged network access. Its NetworkPolicy denies everything—<em>including DNS</em>—unless a declared URL fetch needs a narrow exception, and it has a 300-second deadline. It can describe work, not perform it on the worker.</p></article>
+          <article class="card"><div class="card-kicker">Safe place to run package code</div><h3>The planner cannot launch anything</h3><p>It has no Docker or CRI socket, no host path, no Kubernetes token, and no privileged network access. Its NetworkPolicy denies everything, <em>including DNS</em>, unless a declared URL fetch needs a narrow exception, and it has a 300-second deadline. It can describe work, not perform it on the worker.</p></article>
         </div>
 
         <div class="grid-3" style="margin-top:16px">
           <article class="card">
             <div class="card-kicker">What the recorder allows vs. blocks</div>
             <h3>A short whitelist, a hard wall</h3>
-            <p>Recorded and later realized: <code>PullImage</code>, <code>CreateContainer</code>, <code>StartContainer</code>, <code>Exec</code>, file copies, and stdin writes. Everything else—<code>CreateNet</code>, <code>DeleteContainer</code>, <code>GetRuntimeSocket</code>, log streaming, and friends—fails the plan immediately with <em>“imported code reached a forbidden runtime boundary.”</em> A kind that needs an unmapped operation is stopped at planning, never half-run.</p>
+            <p>Recorded and later realized: <code>PullImage</code>, <code>CreateContainer</code>, <code>StartContainer</code>, <code>Exec</code>, file copies, and stdin writes. Everything else (<code>CreateNet</code>, <code>DeleteContainer</code>, <code>GetRuntimeSocket</code>, log streaming, and so on) fails the plan immediately with <em>“imported code reached a forbidden runtime boundary.”</em> A kind that needs an unmapped operation is stopped at planning, never half-run.</p>
           </article>
           <article class="card">
             <div class="card-kicker">The docker that isn’t</div>
             <h3>An exec-only shim wearing Docker’s name</h3>
-            <p>The recorder answers <code>GetName()</code> with <code>"docker"</code>, and inside the Pod, <code>docker</code> and <code>podman</code> are symlinks to the c9s helper. The shim accepts exactly one verb—<code>exec</code>—and only against the plan-declared target container. It runs a real PTY and filters terminal-query escape sequences, which is enough for kind packages that screen-scrape their own CLI, and nothing more. There is no socket to find.</p>
+            <p>The recorder answers <code>GetName()</code> with <code>"docker"</code>, and inside the Pod, <code>docker</code> and <code>podman</code> are symlinks to the c9s helper. The shim accepts exactly one verb, <code>exec</code>, and only against the plan-declared target container. It runs a real PTY and filters terminal-query escape sequences, which is enough for kind packages that screen-scrape their own CLI, and nothing more. There is no socket to find.</p>
           </article>
           <article class="card">
             <div class="card-kicker">Where the plan lives</div>
             <h3>An immutable, digest-named ConfigMap</h3>
             <p><code>&lt;node&gt;-plan-&lt;12 hex of its digest&gt;</code>, key <code>plan.json</code>, marked <code>immutable</code>, capped at 768&nbsp;KiB. Every byte value of every pull Secret is registered as sensitive first: a plan or input that would contain one is refused before it is ever stored. The mutable sibling is the small connectivity-revision ConfigMap the sidecar polls.</p>
           </article>
+        </div>
+
+        <div class="callout">
+          <strong>Plans expire with the toolchain.</strong> Every plan records a compatibility fingerprint: the pinned containerlab module version and a digest over the imported kind registry. A c9s upgrade that changes either one invalidates the stored plan, and the Node is replanned instead of being run from a stale recording.
         </div>
       </div>
     </section>
@@ -851,20 +856,20 @@ sequenceDiagram
           <div class="section-index">04 · Pod anatomy</div>
           <div>
             <h2>Now r1 gets a Pod of its own.</h2>
-            <p class="section-intro">Three things happen in order: prepare the files, build the network, start the router. The connectivity sidecar is the star of this branch—it owns <em>all</em> of r1’s networking (management, cables, host links) and stays running beside the router for later changes.</p>
+            <p class="section-intro">Three things happen in order: prepare the files, build the network, start the router. The connectivity sidecar owns <em>all</em> of r1’s networking (management, cables, host links) and stays running beside the router; the next section covers it in detail.</p>
           </div>
         </div>
 
         <div class="diagram">
-          <div class="diagram-title"><b>Inside the r1 Pod</b><span>Kubernetes starts it from left to right — nothing runs outside it</span></div>
+          <div class="diagram-title"><b>Inside the r1 Pod</b><span>Kubernetes starts it from left to right; nothing runs outside it</span></div>
           <pre class="mermaid">
 flowchart LR
   subgraph pod["Direct device Pod · shared network namespace"]
-    prep["① prepare-device-plan<br/> put files in place<br/> check their digests"]
-    conn["② device-connectivity<br/> interpose management<br/> build cables · keep watching"]
-    launch["③ launch boundary<br/> tiny c9s helper<br/> pre-start ops, then exec"]
-    app["④ r1 process<br/> the real NOS image<br/> the real device process"]
-    state[("connectivity state<br/> + named conditions")]
+    prep["① prepare-device-plan&lt;br/&gt; put files in place&lt;br/&gt; check their digests"]
+    conn["② device-connectivity&lt;br/&gt; interpose management&lt;br/&gt; build cables · keep watching"]
+    launch["③ launch boundary&lt;br/&gt; tiny c9s helper&lt;br/&gt; pre-start ops, then exec"]
+    app["④ r1 process&lt;br/&gt; the real NOS image&lt;br/&gt; the real device process"]
+    state[("connectivity state&lt;br/&gt; + named conditions")]
     artifacts[("prepared artifacts")]
     prep -->|"must complete"| conn
     conn -->|"startup gate opens"| launch
@@ -875,12 +880,12 @@ flowchart LR
   plan[("immutable plan + input")]
   revision[("mutable connectivity revision")]
   kubelet["kubelet / CRI"]
-  cni["cluster CNI<br/> ordinary Pod interface"]
+  cni["cluster CNI&lt;br/&gt; ordinary Pod interface"]
   plan --> prep
   plan --> conn
   plan --> launch
   revision --> conn
-  conn -->|"preserves as c9s0<br/> builds VTEPs on top"| cni
+  conn --> cni
   kubelet --> launch
 
   classDef helper fill:#173a34,stroke:#61e6cf,color:#edf7f8;
@@ -904,8 +909,42 @@ flowchart LR
           </table>
         </div>
 
+        <div class="section-head" style="margin-top:56px">
+          <div class="section-index">The init container</div>
+          <div>
+            <h2>prepare-device-plan runs first, once, and can stop everything.</h2>
+            <p class="section-intro">Before the sidecar and the device exist, an ordinary init container prepares the ground. It runs the fixed c9s image with almost no rights: read-only root filesystem, no privilege escalation, and only the two file-ownership capabilities it needs (<code>CHOWN</code>, <code>FOWNER</code>).</p>
+          </div>
+        </div>
+
+        <div class="step-list">
+          <div class="step"><div><b>Re-run the imported file generation</b><span>The same containerlab kind code that ran in the planner runs again here, with the same inputs and the allocated management identity, producing config files, certificates, and startup artifacts into the Pod’s volumes.</span></div></div>
+          <div class="step"><div><b>Verify everything against the plan</b><span>Every produced file must match the path, mode, and digest the accepted plan recorded. A mismatch stops the Pod before the device ever starts; nothing runs from an unverified artifact.</span></div></div>
+          <div class="step"><div><b>Stage the declared payloads</b><span>Files from ConfigMaps, Secrets, URLs, and inline content are placed where the plan says, with a 64 MiB ceiling per payload.</span></div></div>
+          <div class="step"><div><b>Install the c9s helper binary</b><span>It copies the manager binary into a shared volume and creates the <code>docker</code> and <code>podman</code> symlinks beside it: the exec-only shim from the planning section, plus the launch, lifecycle, and probe commands every later step uses.</span></div></div>
+          <div class="step"><div><b>Exit</b><span>It runs once per Pod start and leaves no process behind. Only after it succeeds does Kubernetes start the connectivity sidecar, and only after the sidecar’s startup probe passes does the device start.</span></div></div>
+        </div>
+
+        <div class="callout">
+          <strong>Every action the plan records is tagged with a phase, and each phase has exactly one executor.</strong> An action in the wrong phase fails plan validation before the Pod even exists.
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Plan phase</th><th>Runs where</th><th>When</th><th>Typical content</th></tr></thead>
+            <tbody>
+              <tr><td>Prepare</td><td><code>prepare-device-plan</code> init container</td><td>Before anything else</td><td>File generation, digest verification, payload staging.</td></tr>
+              <tr><td>PreStart</td><td>Launch boundary</td><td>At container start, before <code>exec</code></td><td>Planned tmpfs mounts, startup delay, open-file-limit reset.</td></tr>
+              <tr><td>PostStart</td><td>Kubernetes postStart hook</td><td>Right after the device process starts</td><td>The imported PostDeploy hook, planned execs, file writes, stdin feeds.</td></tr>
+              <tr><td>Readiness</td><td>Probe runner inside the device container</td><td>Continuously</td><td>OCI healthcheck, the kind’s own <code>IsHealthy</code>, optional TCP and SSH checks.</td></tr>
+              <tr><td>InterfaceFixup</td><td>Connectivity sidecar</td><td>When interfaces are connected</td><td>The imported endpoint hooks, run against the Pod namespace.</td></tr>
+              <tr><td>Save</td><td>The lifecycle boundary, on demand</td><td>When a configuration save is requested</td><td>The imported <code>SaveConfig</code> path, still checked against the plan.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
         <div class="callout card-accent">
-          <strong>What is deliberately missing from this table: anything on the worker.</strong> The previous iteration of this branch ran a privileged host-endpoint DaemonSet on every Linux worker to build veth halves, patches, VXLAN endpoints, and management loops in the host network namespace. That daemon—its package, chart, CLI, Unix socket, and orphan sweeper—has been deleted. The sidecar realizes everything inside the Pod, so tearing down a Pod tears down its networking by construction.
+          <strong>What is deliberately missing from this table: anything on the worker.</strong> The previous iteration of this branch ran a privileged host-endpoint DaemonSet on every Linux worker to build veth halves, patches, VXLAN endpoints, and management loops in the host network namespace. That daemon, with its package, chart, CLI, Unix socket, and orphan sweeper, has been deleted. The sidecar realizes everything inside the Pod, so tearing down a Pod tears down its networking by construction.
         </div>
 
         <div class="grid-2">
@@ -927,30 +966,87 @@ flowchart LR
       </div>
     </section>
 
-    <section id="links" data-nav="Links">
+    <section id="sidecar" data-nav="Sidecar">
       <div class="wrap">
         <div class="section-head">
-          <div class="section-index">05 · Links &amp; fabric</div>
+          <div class="section-index">05 · The connectivity sidecar</div>
           <div>
-            <h2>The r1—r2 cable never leaves the Pods.</h2>
-            <p class="section-intro">r1 and r2 always see an ordinary Ethernet interface. Every cross-Pod cable has the same hidden shape now: a veth pair inside each Pod, stitched to an in-Pod VXLAN tunnel endpoint that rides the ordinary Pod network. Same worker or different workers—one path, no special cases.</p>
+            <h2>One helper owns all of the Pod’s networking.</h2>
+            <p class="section-intro">Every device Pod contains one privileged c9s container: <code>device-connectivity</code>. It starts before the device, builds the network, and stays running to keep it correct. This whole section is its work: first the cables, then the management interface and its NAT, then the management mesh.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>The sidecar loop</b><span>inputs are files and Services; output is Pod-local Linux state</span></div>
+          <pre class="mermaid">
+flowchart LR
+  plan[("immutable plan")]
+  rev[("connectivity revision&lt;br/&gt;mutable ConfigMap")]
+  svc["headless Services&lt;br/&gt;peer discovery"]
+  side["device-connectivity&lt;br/&gt;reconciles every 1 s"]
+  linux["Pod network namespace&lt;br/&gt;interfaces · routes · nftables · FDB"]
+  state[("readiness marker&lt;br/&gt;+ named conditions")]
+
+  plan --> side
+  rev --> side
+  svc --> side
+  side -->|"converge owned state"| linux
+  side --> state
+
+  classDef c9s fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  classDef data fill:#12364a,stroke:#69a9ff,color:#edf7f8;
+  class side,linux c9s;
+  class plan,rev,svc,state data;
+          </pre>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-kicker">What it is</div>
+            <h3>A restartable init container</h3>
+            <p>It runs the fixed c9s image (never the NOS image) as a native Kubernetes sidecar: an init container with <code>restartPolicy: Always</code>. Its startup probe holds the device containers back until the initial wiring exists; after that it keeps running beside them. It is privileged so it can create interfaces, bridges, VTEPs, routing rules, and nftables state, and that power ends at the Pod boundary: it holds no Kubernetes credentials and talks to no daemon. It replaced the per-worker host daemon (see <a href="#removed">the removal section</a>).</p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">How it works</div>
+            <h3>A one-second reconcile loop</h3>
+            <p>Its inputs are files: the immutable plan and a small mutable revision ConfigMap, both mounted into the Pod. Every second it re-checks the state through netlink and converges what drifted. A device may rename or move interfaces, wipe routes, or program iptables; the sidecar re-asserts only the state it owns. Ownership is written into interface aliases, so it never touches device or CNI state, and a retried pass reaches the same result.</p>
+          </article>
+        </div>
+
+        <div class="grid-3" style="margin-top:16px">
+          <article class="card"><div class="card-kicker">Job 1 · cables</div><h3>Every Link becomes real interfaces</h3><p>A veth pair per Link, plus an in-Pod VXLAN endpoint for cross-Pod Links. Host Links get one veth end placed in the worker namespace. Details directly below.</p></article>
+          <article class="card"><div class="card-kicker">Job 2 · management</div><h3>The device gets its own identity</h3><p>The CNI interface is renamed to <code>c9s0</code> and kept for Kubernetes. The device gets a synthetic <code>eth0</code> with a real management address, and a small NAT table translates between the two.</p></article>
+          <article class="card"><div class="card-kicker">Job 3 · mesh</div><h3>All management legs join one LAN</h3><p>Each Pod bridges its management leg onto a namespace-wide VXLAN mesh, so devices reach each other’s management addresses directly.</p></article>
+        </div>
+
+        <div class="callout">
+          <strong>What failure looks like:</strong> the sidecar publishes a readiness marker tied to the exact plan digest, plus named conditions such as <code>CNIUnderlayPreserved</code> and <code>ManagementTranslationReady</code>. When a probe fails, the log names the broken invariant. If the sidecar itself crashes, Kubernetes restarts it and it runs a full cold pass that fails closed on anything it cannot verify.
+        </div>
+      </div>
+
+      <div class="wrap" id="links">
+        <div class="section-head" style="margin-top:56px">
+          <div class="section-index">Job 1 · Cables</div>
+          <div>
+            <h2>The cable between r1 and r2 never leaves the Pods.</h2>
+            <p class="section-intro">r1 and r2 always see an ordinary Ethernet interface. Every cross-Pod cable has the same shape: a veth pair inside each Pod, stitched to an in-Pod VXLAN tunnel endpoint that rides the ordinary Pod network. Same worker or different workers, it is one path with no special cases.</p>
           </div>
         </div>
 
         <div class="callout card-accent">
-          <strong>Why the tunnel can finally live inside the Pod:</strong> the old worry was that a NOS renames the Pod’s primary interface or strips its IP and routes, cutting off any tunnel built on it. Interposition (next section) removes that hazard: the sidecar renames the CNI interface to <code>c9s0</code> before the device ever starts, and the device is handed a <em>synthetic</em> <code>eth0</code> instead. The device can do whatever it likes to the interfaces it sees—the Kubernetes underlay it never sees stays intact, so the VXLAN endpoints on top of it stay reachable. That is what made the per-worker daemon unnecessary.
+          <strong>Why the tunnel can live inside the Pod:</strong> the old worry was that a NOS renames the Pod’s primary interface or strips its IP and routes, cutting off any tunnel built on it. Interposition (further down) removes that hazard: the sidecar renames the CNI interface to <code>c9s0</code> before the device ever starts, and the device is handed a <em>synthetic</em> <code>eth0</code> instead. The device can do whatever it likes to the interfaces it sees; the Kubernetes underlay it never sees stays intact, so the VXLAN endpoints on top of it stay reachable. This is what made the per-worker daemon unnecessary.
         </div>
 
         <div class="diagram">
-          <div class="diagram-title"><b>The same Link, three possible shapes</b><span>placement no longer changes the transport</span></div>
+          <div class="diagram-title"><b>The same Link, three possible shapes</b><span>placement does not change the transport</span></div>
           <pre class="mermaid">
 flowchart TD
-  L["r1:eth1 ↔ r2:eth1<br/> accepted Link"]
-  H{"One endpoint is<br/> reserved node 'host'?"}
-  P{"Both endpoints in<br/> the same Pod?"}
-  host["Host Link<br/> veth pair made in the Pod;<br/> worker end placed through a<br/> read-only netns handle"]
-  local["Same Pod<br/> one veth pair inside it"]
-  vx["Different Pods<br/> per-Pod veth + in-Pod VXLAN VTEP<br/> same worker or not — same path"]
+  L["r1:eth1 ↔ r2:eth1&lt;br/&gt; accepted Link"]
+  H{"One endpoint is&lt;br/&gt; reserved node 'host'?"}
+  P{"Both endpoints in&lt;br/&gt; the same Pod?"}
+  host["Host Link&lt;br/&gt; veth pair made in the Pod;&lt;br/&gt; worker end placed through a&lt;br/&gt; read-only netns handle"]
+  local["Same Pod&lt;br/&gt; one veth pair inside it"]
+  vx["Different Pods&lt;br/&gt; per-Pod veth + in-Pod VXLAN VTEP&lt;br/&gt; same worker or not, same path"]
 
   L --> H
   H -->|yes| host
@@ -987,31 +1083,31 @@ flowchart TD
               <div class="diagram-title"><b>One cable between two Pods</b><span>everything shown here lives inside a Pod network namespace</span></div>
               <pre class="mermaid">
 flowchart TB
-  subgraph pa["Pod r1 network namespace"]
+  subgraph pa["Pod r1"]
     direction LR
-    r1["r1 application"]
-    e1["e1-1<br/> device leg"]
-    sa["c9ss·hash<br/> sidecar stitch leg"]
-    va["c9sx·hash VTEP<br/> VNI 42 · UDP 14789"]
-    ua["c9s0<br/> preserved CNI interface"]
+    r1["r1"]
+    e1["e1-1"]
+    sa["c9ss…&lt;br/&gt; stitch leg"]
+    va["c9sx… VTEP&lt;br/&gt; VNI 42"]
+    ua["c9s0"]
     r1 --- e1
-    e1 ===|"veth pair"| sa
+    e1 ===|"veth"| sa
     sa <-->|"tc mirred"| va
     va --- ua
   end
-  subgraph pb["Pod r2 network namespace"]
+  subgraph pb["Pod r2"]
     direction LR
-    ub["c9s0<br/> preserved CNI interface"]
-    vb["c9sx·hash VTEP<br/> VNI 42 · UDP 14789"]
-    sb["c9ss·hash<br/> sidecar stitch leg"]
-    e2["e1-1<br/> device leg"]
-    r2["r2 application"]
+    ub["c9s0"]
+    vb["c9sx… VTEP&lt;br/&gt; VNI 42"]
+    sb["c9ss…&lt;br/&gt; stitch leg"]
+    e2["e1-1"]
+    r2["r2"]
     ub --- vb
     vb <-->|"tc mirred"| sb
-    sb ===|"veth pair"| e2
+    sb ===|"veth"| e2
     e2 --- r2
   end
-  pa == "c9s0 ↔ c9s0 · ordinary Pod-to-Pod traffic<br/> Ethernet wrapped in VXLAN, carried by the CNI" ==> pb
+  pa == "Pod-to-Pod UDP 14789&lt;br/&gt; carried by the CNI" ==> pb
 
   classDef device fill:#2d2449,stroke:#b598ff,color:#edf7f8;
   classDef sidecar fill:#173a34,stroke:#61e6cf,color:#edf7f8;
@@ -1021,17 +1117,17 @@ flowchart TB
   class ua,ub underlay;
               </pre>
             </div>
-            <p style="color:var(--muted);font-size:.92rem">The device may rename, adopt, or move its leg (<code>e1-1</code>)—that is normal NOS behavior. The stitch leg and the VTEP stay sidecar-owned and are converged idempotently. This is containerlab’s proven “stitched VXLAN” model, moved into Kubernetes. Whether the two Pods share a worker is invisible here: the CNI simply delivers Pod-to-Pod UDP either way.</p>
+            <p style="color:var(--muted);font-size:.92rem">The device may rename, adopt, or move its leg (<code>e1-1</code>); that is normal NOS behavior. The stitch leg and the VTEP stay sidecar-owned and are converged idempotently. This is containerlab’s stitched VXLAN model, moved into Kubernetes. Whether the two Pods share a worker is invisible here: the CNI delivers Pod-to-Pod UDP either way.</p>
           </div>
           <div class="tab-panel" role="tabpanel" data-panel="peer-discovery">
             <div class="diagram" style="margin-top:0">
               <div class="diagram-title"><b>How r1’s VTEP finds r2</b><span>a Service name, not a hard-coded address</span></div>
               <pre class="mermaid">
 flowchart LR
-  plan["interface plan<br/> peer transport = r2-vx.LAB…"]
-  conn["device-connectivity sidecar<br/> 1 s reconcile tick"]
-  svc["headless Service r2-vx<br/> publishes the Pod address<br/> even before readiness"]
-  vtep["c9sx·hash VTEP<br/> remote = r2's current Pod IP"]
+  plan["interface plan&lt;br/&gt; peer transport = r2-vx.LAB…"]
+  conn["device-connectivity sidecar&lt;br/&gt; 1 s reconcile tick"]
+  svc["headless Service r2-vx&lt;br/&gt; publishes the Pod address&lt;br/&gt; even before readiness"]
+  vtep["c9sx… VTEP&lt;br/&gt; remote = r2's current Pod IP"]
 
   plan --> conn
   conn -->|"resolve on every tick"| svc
@@ -1051,11 +1147,11 @@ flowchart LR
               <div class="diagram-title"><b>A cable from r1 into its worker</b><span><code>r1:eth1 ↔ host:c9s-uplink0</code></span></div>
               <pre class="mermaid">
 flowchart LR
-  link["Link CR<br/> r1:eth1 ↔ host:c9s-uplink0"]
+  link["Link CR&lt;br/&gt; r1:eth1 ↔ host:c9s-uplink0"]
   helper["device-connectivity sidecar"]
-  handle["read-only worker netns handle<br/> mounted only when the topology<br/> declares host Links"]
-  podif["r1 Pod netns<br/> eth1"]
-  hostif["worker host netns<br/> c9s-uplink0"]
+  handle["read-only worker netns handle&lt;br/&gt; mounted only when the topology&lt;br/&gt; declares host Links"]
+  podif["r1 Pod netns&lt;br/&gt; eth1"]
+  hostif["worker host netns&lt;br/&gt; c9s-uplink0"]
 
   link --> helper
   helper -->|"create veth pair in the Pod"| podif
@@ -1069,12 +1165,12 @@ flowchart LR
   class link,handle data;
               </pre>
             </div>
-            <p style="color:var(--muted);font-size:.92rem">A veth pair dies when either end’s namespace dies. So when the Pod is deleted—gracefully or by force—the worker-side end vanishes with it. The old daemon needed a 15-second orphan sweep to guarantee this; the new design gets it for free, by construction.</p>
+            <p style="color:var(--muted);font-size:.92rem">A veth pair dies when either end’s namespace dies. So when the Pod is deleted, gracefully or by force, the worker-side end vanishes with it. The old daemon needed a 15-second orphan sweep to guarantee this; the new design does not need a sweep at all.</p>
           </div>
         </div>
 
         <div class="grid-3">
-          <article class="card"><div class="card-kicker">Naming you will see in <code>ip link</code></div><h3>Everything sidecar-owned says c9s</h3><p><code>c9s0</code> is the preserved CNI interface. Per cable: <code>c9ss…</code> stitch leg, <code>c9sx…</code> VTEP, <code>c9sh…</code> a host-Link leg in transit. Management adds <code>c9sr0</code>, <code>c9sb0</code>, <code>c9sm0</code>, <code>c9sd0</code>, <code>c9sg0</code> (next section).</p></article>
+          <article class="card"><div class="card-kicker">Naming you will see in <code>ip link</code></div><h3>Everything sidecar-owned says c9s</h3><p><code>c9s0</code> is the preserved CNI interface. Per cable: <code>c9ss…</code> stitch leg, <code>c9sx…</code> VTEP, <code>c9sh…</code> a host-Link leg in transit. Management adds <code>c9sr0</code>, <code>c9sb0</code>, <code>c9sm0</code>, <code>c9sd0</code>, <code>c9sg0</code> (below).</p></article>
           <article class="card"><div class="card-kicker">Every interface has an owner</div><h3>UIDs travel into Linux</h3><p>c9s writes ownership into interface aliases and converges only what it owns. A new object with the same name cannot accidentally take over an old interface, and a retried update reaches the same state.</p></article>
           <article class="card"><div class="card-kicker">Hardening baked in</div><h3>Checksums and MTU are handled</h3><p>TX checksum offload is disabled on the synthetic legs (VXLAN-stitched frames must carry real checksums), and the fabric MTU is clamped to the underlay minus VXLAN overhead.</p></article>
         </div>
@@ -1083,7 +1179,7 @@ flowchart LR
           <div class="section-index">VXLAN, precisely</div>
           <div>
             <h2>Port 14789, budgeted VNIs, and a stitch that is not a bridge.</h2>
-            <p class="section-intro">Everything the sidecar builds for one cable fits on one screen. The commands below are the shell equivalent of what it does through netlink—idempotently, re-checked every second.</p>
+            <p class="section-intro">Everything the sidecar builds for one cable fits on one screen. The commands below are the shell equivalent of what it does through netlink.</p>
           </div>
         </div>
 
@@ -1117,18 +1213,18 @@ bridge fdb append 00:00:00:00:00:00 dev c9sm0 dst 10.244.7.21 self permanent</co
         <div class="grid-3">
           <article class="card">
             <div class="card-kicker">Why UDP 14789, not 4789</div>
-            <h3>The lab keeps the real port</h3>
-            <p>The number is pinned once (<code>VXLANServicePort&nbsp;=&nbsp;14789</code>) and used everywhere: cable VTEPs, mesh VTEPs, the <code>-vx</code> Services, the mesh Service. The repo keeps no written rationale—the 2023 commit says only <em>“use 14789 instead of 4789”</em>—but the effect is easy to state: IANA’s 4789 stays free. NOS dataplanes terminate real VXLAN/EVPN on 4789, and CNIs use 4789 or 8472 for their own encapsulation, so a lab can run genuine VXLAN <em>inside</em> the devices while c9s carries it on a port nobody else claims.</p>
+            <h3>4789 stays free for the lab</h3>
+            <p>The number is pinned once (<code>VXLANServicePort&nbsp;=&nbsp;14789</code>) and used everywhere: cable VTEPs, mesh VTEPs, the <code>-vx</code> Services, the mesh Service. The repo has no written rationale (the 2023 commit message says only <em>“use 14789 instead of 4789”</em>), but the effect is clear: NOS dataplanes terminate real VXLAN/EVPN on IANA’s 4789, and CNIs use 4789 or 8472 for their own encapsulation. c9s carries its fabric on a separate port, so a lab can run genuine VXLAN inside the devices.</p>
           </article>
           <article class="card">
             <div class="card-kicker">A budgeted VNI space</div>
             <h3>Cables below 16 M, meshes above</h3>
-            <p>Cross-Pod Links draw lowest-free from a <em>cluster-wide</em> space of 1–16,000,000 (namespaces used to share worker namespaces, and the ceiling simply stayed). VXLAN’s real maximum is 16,777,215—the slice above the ceiling, 16,000,001–16,777,000, is reserved: a namespace’s mesh VNI is <code>16,000,001&nbsp;+&nbsp;sha256("c9s-management-mesh/&lt;ns&gt;")&nbsp;mod&nbsp;777,000</code>. A cable and a mesh can never collide, by construction rather than by coordination.</p>
+            <p>Cross-Pod Links draw the lowest free number from a <em>cluster-wide</em> space of 1 to 16,000,000. VXLAN’s real maximum is 16,777,215; the slice above the Link ceiling, 16,000,001 to 16,777,000, is reserved for meshes. A namespace’s mesh VNI is <code>16,000,001&nbsp;+&nbsp;sha256("c9s-management-mesh/&lt;ns&gt;")&nbsp;mod&nbsp;777,000</code>, so a cable and a mesh can never collide.</p>
           </article>
           <article class="card">
             <div class="card-kicker">Allocation lifecycle</div>
-            <h3>Sticky, deterministic, freed by absence</h3>
-            <p>An accepted Link keeps its VNI across rewires—that is what makes a rewire a live tunnel move instead of a re-allocation. A collision is settled without clocks: the lexically smaller <code>namespace/name</code> keeps the number, the other reallocates. Deleting a Link frees its VNI by pure absence: no finalizer, no free-list, just the next lowest-free scan. Same-Pod and host Links get <code>0</code>—no tunnel exists for them at all.</p>
+            <h3>Kept on rewires, freed on delete</h3>
+            <p>An accepted Link keeps its VNI across rewires; that is what makes a rewire a live tunnel move instead of a re-allocation. A collision is settled without clocks: the lexically smaller <code>namespace/name</code> keeps the number, the other reallocates. Deleting a Link frees its VNI by absence alone: no finalizer, no free-list, just the next lowest-free scan. Same-Pod and host Links get <code>0</code> because no tunnel exists for them.</p>
           </article>
         </div>
 
@@ -1137,10 +1233,10 @@ bridge fdb append 00:00:00:00:00:00 dev c9sm0 dst 10.244.7.21 self permanent</co
             <thead><tr><th>Fabric number</th><th>Value</th><th>Meaning</th></tr></thead>
             <tbody>
               <tr><td>UDP port</td><td><code>14789</code></td><td>Every c9s VXLAN endpoint, cable and mesh alike. NetworkPolicies must allow Pod-to-Pod UDP 14789.</td></tr>
-              <tr><td>Link VNI range</td><td>1 – 16,000,000</td><td>Cluster-wide, lowest free, stored in <code>Link.status.tunnelID</code>.</td></tr>
-              <tr><td>Mesh VNI range</td><td>16,000,001 – 16,777,000</td><td>Hashed from the namespace name; identical in every Pod of the namespace.</td></tr>
+              <tr><td>Link VNI range</td><td>1 to 16,000,000</td><td>Cluster-wide, lowest free, stored in <code>Link.status.tunnelID</code>.</td></tr>
+              <tr><td>Mesh VNI range</td><td>16,000,001 to 16,777,000</td><td>Hashed from the namespace name; identical in every Pod of the namespace.</td></tr>
               <tr><td>Encapsulation overhead</td><td>50 bytes</td><td>Outer IPv4 (20) + UDP (8) + VXLAN (8) + inner Ethernet (14). Fabric MTU = min(declared, underlay − 50); a 1500 CNI yields 1450. Below 68 the sidecar refuses outright.</td></tr>
-              <tr><td>tc filter priority</td><td>42</td><td>The <code>matchall</code> + <code>mirred</code> stitch on both the stitch leg and the VTEP. No bridge, no MAC learning—cables are pure wires.</td></tr>
+              <tr><td>tc filter priority</td><td>42</td><td>The <code>matchall</code> + <code>mirred</code> stitch on both the stitch leg and the VTEP. No bridge, no MAC learning: cables are point-to-point wires.</td></tr>
               <tr><td>Reconcile cadence</td><td>1 s / 5 s / 30 s</td><td>Revision tick every second; an endpoint waiting on its peer retries every 5 s; a converged endpoint is re-asserted every 30 s.</td></tr>
               <tr><td>Peer DNS timeout</td><td>3 s</td><td>Resolution of <code>&lt;peer&gt;-vx</code> binds its socket to the Pod IP so it rides the protected transport rule even if the device wiped the main routing table.</td></tr>
             </tbody>
@@ -1148,103 +1244,94 @@ bridge fdb append 00:00:00:00:00:00 dev c9sm0 dst 10.244.7.21 self permanent</co
         </div>
 
         <div class="callout">
-          <strong>Cable and mesh deliberately differ.</strong> A cable VTEP is point-to-point: <code>remote &lt;peer Pod IP&gt;</code>, learning off, zero FDB entries—there is exactly one place a frame can go. The mesh VTEP (<code>c9sm0</code>) is the opposite: no fixed remote, learning <em>on</em>, and one all-zero-MAC head-end-replication FDB entry per peer Pod, reconciled from the <code>c9s-management-mesh</code> Service every tick. Unknown and broadcast frames flood to every peer; learned unicast goes direct.
+          <strong>Cable and mesh deliberately differ.</strong> A cable VTEP is point-to-point: <code>remote &lt;peer Pod IP&gt;</code>, learning off, zero FDB entries. There is exactly one place a frame can go. The mesh VTEP (<code>c9sm0</code>) is the opposite: no fixed remote, learning on, and one all-zero-MAC head-end-replication FDB entry per peer Pod, reconciled from the <code>c9s-management-mesh</code> Service every tick. Unknown and broadcast frames flood to every peer; learned unicast goes direct.
         </div>
 
         <div class="callout warning">
-          <strong>The <code>connectivity</code> field is gone.</strong> Earlier drafts accepted <code>vxlan</code> and <code>slurpeeth</code> as Link/Topology settings. With exactly one cross-Pod realization left—in-Pod stitched VXLAN—the selector selected nothing, so this branch removes the field and the slurpeeth transport outright. Old manifests that still set it now fail CRD validation with a named field. The full story of that removal—and everything else this branch deleted—is in <a href="#removed">section 08</a>.
+          <strong>Links carry no transport selector.</strong> There is exactly one cross-Pod realization, so the former <code>connectivity</code> field no longer exists. Manifests that still set it fail CRD validation with the field named. The history of that field and its second value is in <a href="#removed">the removal section</a>.
         </div>
       </div>
-    </section>
 
-    <section id="management" data-nav="Management">
-      <div class="wrap">
-        <div class="section-head">
-          <div class="section-index">06 · Management plane &amp; mesh</div>
+      <div class="wrap" id="management">
+        <div class="section-head" style="margin-top:56px">
+          <div class="section-index">Job 2 · Management</div>
           <div>
             <h2>r1 gets a real management network, not a borrowed Pod IP.</h2>
-            <p class="section-intro">The Pod address is no longer r1’s identity. The controller allocates a containerlab-style management address, the sidecar <em>interposes</em> a synthetic management interface carrying it before the NOS starts, and every Pod in the namespace is bridged into one shared L2 management domain—exactly what containerlab’s management bridge gives you on Docker.</p>
+            <p class="section-intro">The Pod address is no longer r1’s identity. The controller allocates a containerlab-style management address, the sidecar <em>interposes</em> a synthetic management interface carrying it before the NOS starts, and every Pod in the namespace is bridged into one shared L2 management domain, exactly what containerlab’s management bridge gives you on Docker.</p>
           </div>
         </div>
 
         <div class="callout card-accent">
-          <strong>The trick in one sentence:</strong> the sidecar renames the CNI-created interface to <code>c9s0</code> and keeps it for Kubernetes transport, then hands the device a freshly made veth <code>eth0</code> that carries the allocated management address (say <code>172.20.20.11/24</code>). The NOS adopts it exactly as it would a physical management port—lease synthesis, <code>mgmt0.0</code> addressing, SSH, all of it—while the Kubernetes underlay stays untouchable one interface away. This pattern (validated in spikes against unmodified SR Linux, SR-SIM, and cEOS) is what the change calls <em>interposition</em>.
+          <strong>The trick in one sentence:</strong> the sidecar renames the CNI-created interface to <code>c9s0</code> and keeps it for Kubernetes transport, then hands the device a freshly made veth <code>eth0</code> that carries the allocated management address (say <code>172.20.20.11/24</code>). The NOS adopts it exactly as it would a physical management port: lease synthesis, <code>mgmt0.0</code> addressing, SSH, all of it. The Kubernetes underlay stays untouchable one interface away. This pattern, validated in spikes against unmodified SR Linux, SR-SIM, and cEOS, is what the change calls <em>interposition</em>.
         </div>
 
         <div class="diagram">
-          <div class="diagram-title"><b>Inside one interposed Pod</b><span>every interface here is created by the sidecar, except the one the CNI made</span></div>
+          <div class="diagram-title"><b>Inside one interposed Pod</b><span>the device sees eth0; Kubernetes sees c9s0; a bridge and NAT sit between them</span></div>
           <pre class="mermaid">
-flowchart TB
+flowchart LR
   subgraph pod["Pod r1 network namespace"]
-    app["NOS process"]
-    dev["eth0 · device leg<br/> 172.20.20.11/24<br/> vendor MAC when the kind pins one"]
-    d0["c9sd0<br/> normal bridge port"]
-    br["c9sb0 · pure-L2 bridge<br/> no IP · pinned MAC"]
-    g0["c9sg0<br/> isolated bridge port"]
-    r0["c9sr0 · gateway leg<br/> 172.20.20.1 · deterministic MAC 02:c9:…"]
-    m0["c9sm0 · mesh VTEP<br/> isolated bridge port"]
-    u0["c9s0<br/> preserved CNI interface · Pod IP"]
-    nat["nftables table c9s-interposition<br/> dstnat −110 · srcnat 90"]
-    pol["policy routing<br/> rules 900/901/902 → table 20000"]
+    direction LR
+    app["NOS"]
+    dev["eth0&lt;br/&gt; .11/24"]
+    d0["c9sd0"]
+    br["c9sb0&lt;br/&gt; bridge"]
+    g0["c9sg0&lt;br/&gt; isolated"]
+    r0["c9sr0&lt;br/&gt; gateway .1"]
+    u0["c9s0&lt;br/&gt; Pod IP"]
+    m0["c9sm0 VTEP&lt;br/&gt; isolated"]
 
     app --- dev
-    dev ===|"veth pair"| d0
+    dev ===|"veth"| d0
     d0 --- br
     br --- g0
-    g0 ===|"veth pair"| r0
+    g0 ===|"veth"| r0
+    r0 -->|"NAT −110/90&lt;br/&gt; table 20000"| u0
     br --- m0
-    r0 --- pol
-    pol --- u0
-    nat -. "translates at the gateway hop" .- r0
   end
-  mesh["management mesh<br/> peer Pods · same VNI"]
-  cluster["cluster network<br/> Services · DNS · kubectl"]
-  m0 ==>|"VXLAN over c9s0<br/> head-end replication"| mesh
+  mesh["peer Pods&lt;br/&gt; same VNI"]
+  cluster["cluster&lt;br/&gt; kubectl · DNS"]
+  m0 ==>|"VXLAN 14789"| mesh
   u0 ==> cluster
 
   classDef device fill:#2d2449,stroke:#b598ff,color:#edf7f8;
   classDef sidecar fill:#173a34,stroke:#61e6cf,color:#edf7f8;
   classDef underlay fill:#12364a,stroke:#69a9ff,color:#edf7f8;
-  classDef rules fill:#3a2f1e,stroke:#ffc56b,color:#edf7f8;
   class app,dev device;
   class d0,br,g0,r0,m0 sidecar;
   class u0,mesh,cluster underlay;
-  class nat,pol rules;
           </pre>
         </div>
 
         <div class="grid-3">
           <article class="card"><div class="card-kicker">Where the address comes from</div><h3>Allocated, never improvised</h3><p>The NodeProfile’s <code>mgmt</code> policy (subnets, gateway, static <code>mgmt-ipv4</code>/<code>mgmt-ipv6</code>) wins when present. Without one, c9s allocates from containerlab’s default <code>172.20.20.0/24</code> with the gateway at the first usable address. Management config renders at plan time through each kind’s own containerlab templates; the only runtime-completed input left is DNS resolver discovery from the Pod.</p></article>
-          <article class="card"><div class="card-kicker">Why exposure still works</div><h3>NAT at the gateway hop</h3><p>The device listens on its management address, but the cluster only knows the Pod IP. The sidecar’s <code>c9s-interposition</code> nftables table DNATs declared inbound ports from the Pod address to the management address and SNATs outbound management traffic back to the Pod address. Its hook priorities (−110/90) sit ahead of anything a device programs into its own iptables—proven against cEOS, which programs plenty.</p></article>
+          <article class="card"><div class="card-kicker">Why exposure still works</div><h3>NAT at the gateway hop</h3><p>The device listens on its management address, but the cluster only knows the Pod IP. The sidecar’s <code>c9s-interposition</code> nftables table translates declared inbound ports to the management address (DNAT) and outbound management traffic back to the Pod address (SNAT). Details below.</p></article>
           <article class="card"><div class="card-kicker">Why kubectl keeps working</div><h3>Transport is protected</h3><p>A sidecar-owned policy routing table (20000) carries Kubernetes transport, selected by three rules: anything entering via the gateway leg, Pod-sourced traffic such as VTEP encapsulation, and traffic to the Pod’s own management address. A device may wipe the main routing table; probes, logs, and tunnels keep flowing.</p></article>
         </div>
 
         <div class="section-head" style="margin-top:56px">
-          <div class="section-index">The translation</div>
+          <div class="section-index">The NAT</div>
           <div>
-            <h2>A NAT table the device cannot out-rule.</h2>
-            <p class="section-intro">The whole translation fits on one screen. The sidecar rebuilds the <code>c9s-interposition</code> table atomically on every pass—flush and re-add in a single kernel transaction—so it is always exactly this, no matter what the NOS has meanwhile done to its own iptables.</p>
+            <h2>DNAT in, SNAT out. That is the whole table.</h2>
+            <p class="section-intro">Inbound traffic to the Pod IP is rewritten to the management address. Outbound management traffic is rewritten to the Pod IP. The sidecar rebuilds the table atomically on every pass, so it always looks exactly like this, whatever the NOS did to its own iptables.</p>
           </div>
         </div>
 
         <div class="code-block">
-          <div class="code-head"><span>nft list table ip c9s-interposition · representative (Pod IP 10.244.2.134, device 172.20.20.11)</span><button class="copy-button" type="button">copy</button></div>
-          <pre><code>table ip c9s-interposition {            # netns-scoped: exists only inside this Pod
+          <div class="code-head"><span>nft list table ip c9s-interposition · Pod IP 10.244.2.134, device 172.20.20.11</span><button class="copy-button" type="button">copy</button></div>
+          <pre><code>table ip c9s-interposition {            # exists only inside this Pod's netns
   chain dstnat {
     type nat hook prerouting priority -110; policy accept;
-    # one DNAT rule per declared inbound port: Pod identity in, device identity out
+    # one rule per declared inbound port
     ip daddr 10.244.2.134 tcp dport 22    dnat to 172.20.20.11:22
     ip daddr 10.244.2.134 tcp dport 830   dnat to 172.20.20.11:830
     ip daddr 10.244.2.134 tcp dport 57400 dnat to 172.20.20.11:57400
     ip daddr 10.244.2.134 udp dport 161   dnat to 172.20.20.11:161
-    # ... every other declared port, same shape
   }
   chain srcnat {
     type nat hook postrouting priority 90; policy accept;
-    # shape 1: anything from the management subnet leaving for the cluster
+    # outbound via the transport interface
     oifname "c9s0" ip saddr 172.20.20.0/24 masquerade
-    # shape 2: locally-originated flows get their NAT verdict on the device leg,
-    #          and intra-subnet (mesh) destinations are explicitly never translated
+    # locally-originated flows; management-subnet targets are never translated
     oifname "eth0" ip saddr 172.20.20.11 ip daddr != 172.20.20.0/24 snat to 10.244.2.134
   }
 }</code></pre>
@@ -1253,39 +1340,37 @@ flowchart TB
         <div class="grid-3">
           <article class="card">
             <div class="card-kicker">Why −110 and 90</div>
-            <h3>Ahead of iptables, without touching it</h3>
-            <p>Every x_tables NAT chain sits at a fixed priority: PREROUTING at −100, POSTROUTING at 100. By hooking <em>dstnat</em> at −110 and <em>srcnat</em> at 90, the sidecar’s verdict always lands first—no rule inside the device’s own iptables is read, reordered, or deleted. Proven against cEOS, which programs plenty of its own; its FORWARD chain conveniently accepts what interposition forwards, so no filter chain is needed at all.</p>
+            <h3>It always runs before iptables</h3>
+            <p>iptables NAT chains sit at fixed priorities: −100 for PREROUTING, 100 for POSTROUTING. The sidecar hooks at −110 and 90, so its rules run first. Device rules are not read, changed, or removed. cEOS programs many of its own and is unaffected.</p>
           </article>
           <article class="card">
-            <div class="card-kicker">Which ports get DNATed</div>
-            <h3>Three sources, one union</h3>
-            <p>Declared topology <code>ports:</code>, the image’s <code>EXPOSE</code> list, and—unless the profile sets <code>disableAutoExpose</code>—the auto-expose defaults: TCP 21, 22, 23, 80, 443, 830, 5000, 5900, 6030, 9339, 9340, 9559, 57400 and UDP 161. Ports of Pod-mates (grouped Nodes) claim their number <em>without</em> translation, so a declared port can never shadow a sibling’s listener. Today the Pod port always equals the device port.</p>
+            <div class="card-kicker">Which ports</div>
+            <h3>Topology ports, EXPOSE, and defaults</h3>
+            <p>The DNAT list is the union of the topology’s <code>ports:</code>, the image’s <code>EXPOSE</code> list, and (unless the profile sets <code>disableAutoExpose</code>) the defaults: TCP 21, 22, 23, 80, 443, 830, 5000, 5900, 6030, 9339, 9340, 9559, 57400 and UDP 161. The Pod port always equals the device port. Ports of Pod-mates are reserved but never translated, so they cannot be shadowed.</p>
           </article>
           <article class="card">
-            <div class="card-kicker">What is never translated</div>
-            <h3>The mesh speaks with real addresses</h3>
-            <p>Device-to-device management traffic stays untranslated: the <code>daddr&nbsp;!=&nbsp;172.20.20.0/24</code> exclusion covers locally-bound flows, and mesh traffic never exits via <code>c9s0</code> anyway. When r1 pings r2’s <code>.12</code>, r2 sees <code>.11</code>—exactly containerlab’s bridge behavior. The table is IPv4-only by design: an IPv6 management address is put on the device leg untranslated.</p>
+            <div class="card-kicker">What is not translated</div>
+            <h3>Mesh traffic keeps real addresses</h3>
+            <p>Device-to-device management traffic stays untranslated: when r1 pings r2’s <code>.12</code>, r2 sees <code>.11</code>, like on containerlab’s bridge. The table is IPv4-only; an IPv6 management address is put on the device leg without translation.</p>
           </article>
         </div>
 
         <div class="step-list" aria-label="Inbound SSH, hop by hop">
-          <div class="step"><div><b>A client dials the exposed Service</b><span>kube-proxy delivers to <code>PodIP:22</code>; the packet enters the Pod on <code>c9s0</code>. Kubernetes has no idea a management subnet exists.</span></div></div>
-          <div class="step"><div><b>DNAT before the device can look</b><span>PREROUTING at −110 rewrites the destination to <code>172.20.20.11:22</code>. Whatever the NOS has in its own PREROUTING (fixed at −100) sees only the already-translated packet.</span></div></div>
-          <div class="step"><div><b>Policy rule 902 selects table 20000</b><span><code>to 172.20.20.11/32</code>—deliberately an exact /32. An earlier subnet-wide rule hijacked <em>peer</em> management addresses away from the mesh into the isolated gateway leg; the conformance suite caught it, and the sidecar now actively deletes any stale subnet-shaped rule it finds.</span></div></div>
-          <div class="step"><div><b>Out the gateway leg</b><span>Table 20000 holds a connected route for <code>172.20.20.0/24</code> via <code>c9sr0</code>, the leg carrying the gateway address <code>.1</code> and the namespace-deterministic <code>02:c9:…</code> MAC.</span></div></div>
-          <div class="step"><div><b>Exactly one ARP answer</b><span><code>arp_ignore=1</code> on every mesh element means only the device leg answers for <code>.11</code>. Without it, three interfaces would reply and the flow would flap between paths.</span></div></div>
-          <div class="step"><div><b>Across the bridge to the device</b><span><code>c9sg0</code> → bridge <code>c9sb0</code> → <code>c9sd0</code> → veth → device <code>eth0</code>. The NOS sees a plain SSH connection to its own management address and answers as it would on hardware.</span></div></div>
-          <div class="step"><div><b>The reply takes rule 900</b><span>The device routes via its gateway <code>.1</code>; entering <code>c9sr0</code> matches <code>iif c9sr0</code> → table 20000 → the captured CNI default route out <code>c9s0</code>.</span></div></div>
-          <div class="step"><div><b>Conntrack undoes the DNAT</b><span>The client still sees <code>PodIP:22</code>. Outbound flows the device originates itself take the srcnat chain at 90—again ahead of anything it programmed at 100.</span></div></div>
+          <div class="step"><div><b>A client reaches <code>PodIP:22</code></b><span>Through a Service or directly. The packet enters the Pod on <code>c9s0</code>.</span></div></div>
+          <div class="step"><div><b>DNAT rewrites the destination</b><span>To <code>172.20.20.11:22</code>, at priority −110, before any device iptables rule runs.</span></div></div>
+          <div class="step"><div><b>Rule 902 picks table 20000</b><span>The rule matches the management address as an exact /32. A subnet-wide match would also grab peer addresses that belong on the mesh, so the sidecar deletes any stale subnet-shaped rule it finds.</span></div></div>
+          <div class="step"><div><b>The packet leaves via <code>c9sr0</code></b><span>Table 20000 routes the management subnet out the gateway leg. Only the device leg answers the ARP for <code>.11</code> (<code>arp_ignore=1</code> everywhere else), so the frame crosses the bridge to <code>eth0</code>.</span></div></div>
+          <div class="step"><div><b>The device answers as it would on hardware</b><span>An ordinary SSH session on its own management address, gateway <code>.1</code>.</span></div></div>
+          <div class="step"><div><b>The reply returns through rule 900</b><span>Entering <code>c9sr0</code> selects table 20000 and the saved CNI default route out <code>c9s0</code>. Conntrack reverses the DNAT; the client still sees <code>PodIP:22</code>.</span></div></div>
         </div>
 
         <div class="table-wrap">
           <table>
             <thead><tr><th>ip rule</th><th>Selector</th><th>What it protects</th></tr></thead>
             <tbody>
-              <tr><td>Priority 900</td><td><code>iif c9sr0</code> → table 20000</td><td>Everything the device sends toward the cluster through its gateway. The device’s idea of routing ends at <code>.1</code>; from there the sidecar’s table decides.</td></tr>
-              <tr><td>Priority 901</td><td><code>from &lt;Pod IP&gt;</code> → table 20000</td><td>Pod-sourced traffic: transport replies and—crucially—VTEP encapsulation, which sources the Pod address. This is why every tunnel survives a device wiping the main routing table. Even the sidecar’s own DNS lookups bind the Pod IP so they ride this rule.</td></tr>
-              <tr><td>Priority 902</td><td><code>to &lt;mgmt IP&gt;/32</code> → table 20000</td><td>Probes and lifecycle hooks reaching the device’s own management address. Exact /32 only—peer management addresses deliberately fall through to the device leg’s connected route and ride the mesh.</td></tr>
+              <tr><td>Priority 900</td><td><code>iif c9sr0</code> → table 20000</td><td>Everything the device sends toward the cluster through its gateway. The device’s routing ends at <code>.1</code>; from there the sidecar’s table decides.</td></tr>
+              <tr><td>Priority 901</td><td><code>from &lt;Pod IP&gt;</code> → table 20000</td><td>Pod-sourced traffic: transport replies and VTEP encapsulation, which sources the Pod address. This is why tunnels survive a device wiping the main routing table. The sidecar’s own DNS lookups bind the Pod IP so they ride this rule too.</td></tr>
+              <tr><td>Priority 902</td><td><code>to &lt;mgmt IP&gt;/32</code> → table 20000</td><td>Probes and lifecycle hooks reaching the device’s own management address. Exact /32 only; peer management addresses fall through to the device leg’s connected route and ride the mesh.</td></tr>
             </tbody>
           </table>
         </div>
@@ -1295,20 +1380,20 @@ flowchart TB
             <thead><tr><th>Sysctl the sidecar sets</th><th>Value</th><th>Why</th></tr></thead>
             <tbody>
               <tr><td><code>net.ipv4.ip_forward</code></td><td>1</td><td>The gateway leg routes between the device leg and the Kubernetes transport.</td></tr>
-              <tr><td><code>rp_filter</code> — <code>all</code>, <code>default</code>, and every existing interface</td><td>0</td><td>Management paths are legitimately asymmetric. <code>default</code> matters most: interfaces a device creates <em>later</em> (SR Linux makes its own) inherit the namespace template, and the effective filter is max(all, iface). Ubuntu—and therefore GitHub CI runners—ships 2; WSL2 ships 0. That difference was a CI-only management-DNS failure on this branch until commit <code>17471d2</code> cleared all three layers.</td></tr>
-              <tr><td><code>arp_ignore</code> on <code>c9sr0</code>/<code>c9sb0</code>/<code>c9sd0</code>/<code>c9sg0</code>/<code>c9sm0</code> + device leg</td><td>1</td><td>One gateway ARP gets one answer. The device leg is included because single-namespace kinds would otherwise flux-answer mesh-flooded ARP through their non-isolated port.</td></tr>
+              <tr><td><code>rp_filter</code> (<code>all</code>, <code>default</code>, and every existing interface)</td><td>0</td><td>Management paths are legitimately asymmetric. <code>default</code> matters most: interfaces a device creates <em>later</em> (SR Linux makes its own) inherit the namespace template, and the effective filter is max(all, iface). Ubuntu, and therefore GitHub CI runners, ships 2; WSL2 ships 0. That difference was a CI-only management-DNS failure until commit <code>17471d2</code> cleared all three layers.</td></tr>
+              <tr><td><code>arp_ignore</code> on <code>c9sr0</code>/<code>c9sb0</code>/<code>c9sd0</code>/<code>c9sg0</code>/<code>c9sm0</code> + device leg</td><td>1</td><td>One gateway ARP gets one answer. The device leg is included because single-namespace kinds would otherwise also answer mesh-flooded ARP through their non-isolated port.</td></tr>
               <tr><td><code>disable_ipv6</code> on bridge + ports</td><td>1</td><td>Pure-L2 elements must never source NDP or link-local traffic onto the mesh.</td></tr>
-              <tr><td><code>bridge-nf-call-{ip,ip6,arp}tables</code></td><td>0 <em>(only when <code>br_netfilter</code> is loaded)</em></td><td>Kubernetes nodes load <code>br_netfilter</code> and the Pod namespace inherits it, so bridged mesh frames would traverse Pod netfilter a second time after the gateway hop—conntrack clash resolution then re-NATed translated flows. Found during cluster conformance; disabled per-namespace, the worker is untouched.</td></tr>
+              <tr><td><code>bridge-nf-call-{ip,ip6,arp}tables</code></td><td>0 <em>(only when <code>br_netfilter</code> is loaded)</em></td><td>Kubernetes nodes load <code>br_netfilter</code> and the Pod namespace inherits it, so bridged mesh frames would traverse Pod netfilter a second time after the gateway hop, and conntrack then re-NATed translated flows. Found during cluster conformance; disabled per namespace, the worker is untouched.</td></tr>
               <tr><td><code>forwarding</code> on the device leg</td><td>0</td><td>No kernel re-forwarding loops for kinds that keep the leg in the Pod namespace.</td></tr>
             </tbody>
           </table>
         </div>
 
         <div class="section-head" style="margin-top:56px">
-          <div class="section-index">The mesh</div>
+          <div class="section-index">Job 3 · The mesh</div>
           <div>
             <h2>One flat management LAN across every Pod.</h2>
-            <p class="section-intro">Interposition alone would leave each Pod a private island of <code>172.20.20.0/24</code>. Real labs hardcode peer management addresses—gnmic targets, syslog collectors, a plain <code>ping</code>. So each Pod’s bridge also carries a mesh VTEP (<code>c9sm0</code>), and the whole namespace becomes one broadcast domain: ARP resolves the peer device’s actual MAC, and any protocol runs device-to-device in both directions.</p>
+            <p class="section-intro">Interposition alone would leave each Pod a private island of <code>172.20.20.0/24</code>. Real labs hardcode peer management addresses: gnmic targets, syslog collectors, a plain <code>ping</code>. So each Pod’s bridge also carries a mesh VTEP (<code>c9sm0</code>), and the whole namespace becomes one broadcast domain: ARP resolves the peer device’s actual MAC, and any protocol runs device-to-device in both directions.</p>
           </div>
         </div>
 
@@ -1319,16 +1404,16 @@ flowchart TB
   subgraph p1["Pod r1"]
     d1["r1 · .11"]
     b1["c9sb0"]
-    gw1["gateway .1<br/> isolated port"]
+    gw1["gateway .1&lt;br/&gt; isolated port"]
     v1["c9sm0 VTEP"]
     d1 --- b1
     b1 --- v1
-    b1 -. "isolation blocks<br/> gateway ↔ mesh" .- gw1
+    b1 -. "isolation blocks&lt;br/&gt; gateway ↔ mesh" .- gw1
   end
   subgraph p2["Pod r2"]
     d2["r2 · .12"]
     b2["c9sb0"]
-    gw2["gateway .1<br/> isolated port"]
+    gw2["gateway .1&lt;br/&gt; isolated port"]
     v2["c9sm0 VTEP"]
     d2 --- b2
     b2 --- v2
@@ -1337,13 +1422,13 @@ flowchart TB
   subgraph p3["Pod gnmic"]
     d3["collector · .13"]
     b3["c9sb0"]
-    gw3["gateway .1<br/> isolated port"]
+    gw3["gateway .1&lt;br/&gt; isolated port"]
     v3["c9sm0 VTEP"]
     d3 --- b3
     b3 --- v3
     b3 -.- gw3
   end
-  svc["headless Service c9s-management-mesh<br/> lists every direct device Pod address"]
+  svc["headless Service c9s-management-mesh&lt;br/&gt; lists every direct device Pod address"]
   v1 <==>|"VNI derived from namespace"| v2
   v2 <==> v3
   v1 <==> v3
@@ -1361,10 +1446,10 @@ flowchart TB
         </div>
 
         <div class="grid-4">
-          <article class="card"><div class="card-kicker">Peer discovery</div><h3>A Service, not a plan</h3><p>Peers are deliberately <em>not</em> plan data—a planned peer list would recreate every Pod whenever a Node joins or leaves. Instead one namespace-scoped headless Service (<code>c9s-management-mesh</code>, not-ready addresses published) lists all member Pods; each sidecar resolves it on its tick and reconciles head-end-replication FDB entries exactly. Scale-out and scale-in restart nothing.</p></article>
-          <article class="card"><div class="card-kicker">VNI allocation</div><h3>Collision-free by construction</h3><p>The mesh VNI is derived from the namespace name into the range above 16,000,000—the ceiling of the Link allocator—so a management mesh can never collide with any cable’s tunnel ID. The gateway MAC (<code>02:c9:…</code>) is derived the same way, identical in every Pod of the namespace.</p></article>
-          <article class="card"><div class="card-kicker">Gateway containment</div><h3>Isolation, not netfilter</h3><p>The gateway port and mesh port are both <em>isolated</em> bridge ports, so gateway↔mesh traffic is structurally impossible: every Pod answers the gateway address locally with the same deterministic MAC, and no gateway frame ever crosses the mesh. This uses core bridge port isolation because some kernels (WSL2 among them) ship no bridge netfilter.</p></article>
-          <article class="card"><div class="card-kicker">Kernel gotchas, solved</div><h3>ARP flux and br_netfilter</h3><p><code>arp_ignore=1</code> on every mesh element (device leg included) keeps a single gateway ARP from getting three answers. And because Kubernetes nodes load <code>br_netfilter</code>, the sidecar disables <code>bridge-nf-call-*</code> inside the Pod namespace so bridged frames are not re-run through conntrack—found and fixed during cluster conformance.</p></article>
+          <article class="card"><div class="card-kicker">Peer discovery</div><h3>A Service, not a plan</h3><p>Peers are deliberately <em>not</em> plan data: a planned peer list would recreate every Pod whenever a Node joins or leaves. Instead one namespace-scoped headless Service (<code>c9s-management-mesh</code>, not-ready addresses published) lists all member Pods; each sidecar resolves it on its tick and reconciles the head-end-replication FDB entries exactly. Scale-out and scale-in restart nothing.</p></article>
+          <article class="card"><div class="card-kicker">VNI allocation</div><h3>Above the Link ceiling</h3><p>The mesh VNI is derived from the namespace name into the range above 16,000,000, the ceiling of the Link allocator, so a management mesh can never collide with any cable’s tunnel ID. The gateway MAC (<code>02:c9:…</code>) is derived the same way, identical in every Pod of the namespace.</p></article>
+          <article class="card"><div class="card-kicker">Gateway containment</div><h3>Isolation, not netfilter</h3><p>The gateway port and mesh port are both <em>isolated</em> bridge ports, so gateway-to-mesh traffic is structurally impossible: every Pod answers the gateway address locally with the same deterministic MAC, and no gateway frame ever crosses the mesh. This uses core bridge port isolation because some kernels (WSL2 among them) ship no bridge netfilter.</p></article>
+          <article class="card"><div class="card-kicker">Kernel gotchas</div><h3>ARP flux and br_netfilter</h3><p><code>arp_ignore=1</code> on every mesh element (device leg included) keeps a single gateway ARP from getting three answers. And because Kubernetes nodes load <code>br_netfilter</code>, the sidecar disables <code>bridge-nf-call-*</code> inside the Pod namespace so bridged frames are not re-run through conntrack. Found and fixed during cluster conformance.</p></article>
         </div>
 
         <div class="callout warning">
@@ -1376,7 +1461,7 @@ flowchart TB
     <section id="updates" data-nav="Updates">
       <div class="wrap">
         <div class="section-head">
-          <div class="section-index">07 · Live updates</div>
+          <div class="section-index">06 · Live updates</div>
           <div>
             <h2>Moving a cable does not always rebuild the router.</h2>
             <p class="section-intro">When a Link changes, c9s makes a new plan and asks the imported Containerlab kind how disruptive the change must be. The answer is Live, Restart, or Recreate.</p>
@@ -1389,12 +1474,12 @@ flowchart TB
 flowchart TD
   change["Something changed"]
   replan["Make and check a new plan"]
-  only{"Was it only<br/> a Link change?"}
-  mode{"Containerlab kind says<br/> Live, Restart, or Recreate"}
-  live["LIVE<br/> wiring helper changes it<br/> while r1 keeps running"]
-  restart["RESTART<br/> change the wire, stop r1<br/> kubelet restarts its container"]
-  recreate["RECREATE<br/> replace the Pod using<br/> the new full plan"]
-  fail["Stop and report an error<br/> if the helper cannot prove<br/> it has the exact new plan"]
+  only{"Was it only&lt;br/&gt; a Link change?"}
+  mode{"Containerlab kind says&lt;br/&gt; Live, Restart, or Recreate"}
+  live["LIVE&lt;br/&gt; wiring helper changes it&lt;br/&gt; while r1 keeps running"]
+  restart["RESTART&lt;br/&gt; change the wire, stop r1&lt;br/&gt; kubelet restarts its container"]
+  recreate["RECREATE&lt;br/&gt; replace the Pod using&lt;br/&gt; the new full plan"]
+  fail["Stop and report an error&lt;br/&gt; if the helper cannot prove&lt;br/&gt; it has the exact new plan"]
 
   change --> replan --> only
   only -->|no| recreate
@@ -1440,9 +1525,9 @@ flowchart TD
     <section id="removed" data-nav="Removed">
       <div class="wrap">
         <div class="section-head">
-          <div class="section-index">08 · What was removed</div>
+          <div class="section-index">07 · What was removed</div>
           <div>
-            <h2>Nothing was kept “just in case.”</h2>
+            <h2>Deleted, and why.</h2>
             <p class="section-intro">The direct cut is 56 commits across four OpenSpec changes, and it deletes as much as it adds. The retire change states the policy plainly: <em>“Anything half-kept in this release becomes permanent surface: a CRD name users would learn, a selector field users would set, compat code that only serves upgrade paths the docs forbid.”</em></p>
           </div>
         </div>
@@ -1451,13 +1536,13 @@ flowchart TD
           <table>
             <thead><tr><th>Removed</th><th>What it was</th><th>Why it went</th><th>Replaced by</th></tr></thead>
             <tbody>
-              <tr><td>The launcher</td><td>A privileged Pod image bundling containerlab 0.78, docker-ce, and nerdctl; it started <code>dockerd</code> inside the Pod and ran <code>containerlab deploy</code> against a rendered file.</td><td>Kubernetes could not own the device image, lifecycle, logs, resources, or status—the real router lived one nesting layer too deep.</td><td>The recorded-plan pipeline; the kubelet runs the NOS as a first-class container.</td></tr>
+              <tr><td>The launcher</td><td>A privileged Pod image bundling containerlab 0.78, docker-ce, and nerdctl; it started <code>dockerd</code> inside the Pod and ran <code>containerlab deploy</code> against a rendered file.</td><td>Kubernetes could not own the device image, lifecycle, logs, resources, or status; the real router lived one nesting layer too deep.</td><td>The recorded-plan pipeline; the kubelet runs the NOS as a first-class container.</td></tr>
               <tr><td>ImageRequest CRD + puller Pods + CRI socket mounts</td><td>A “pull-through” path: per-request puller Pods and a mounted worker containerd socket so the nested dockerd could import images.</td><td>With no nested runtime there is nothing to import into; mounting a node runtime socket violates the direct-runtime boundary.</td><td>Metadata-only OCI resolution (manifest + config, never layers); the kubelet performs the only pull, digest-pinned.</td></tr>
-              <tr><td>slurpeeth transport</td><td>An experimental userspace TCP tunnel for cross-Pod links, selectable per Link/Topology, on TCP 4799.</td><td>See the full story below—interposition dissolved the problem it solved.</td><td>One transport: in-Pod stitched VXLAN on UDP 14789.</td></tr>
+              <tr><td>slurpeeth transport</td><td>An experimental userspace TCP tunnel for cross-Pod links, selectable per Link/Topology, on TCP 4799.</td><td>See the full story below; interposition removed the problem it solved.</td><td>One transport: in-Pod stitched VXLAN on UDP 14789.</td></tr>
               <tr><td><code>connectivity</code> field</td><td>The <code>vxlan</code> | <code>slurpeeth</code> selector on Link and Topology.</td><td>It selected nothing while still constraining behavior: a uint16 VNI clamp and a dead TCP/4799 fabric port.</td><td>Nothing. A future second transport should design its own selector.</td></tr>
-              <tr><td><code>internal/hostendpoint</code></td><td>A privileged <code>hostNetwork</code> DaemonSet on every worker, talking to sidecars over a hostPath Unix socket; it built host-Link legs, cross-Pod transports, and a management hairpin from RFC 2544 space—with a 15-second orphan sweep.</td><td>Interposition made the in-Pod fabric correct, and a veth pair dies with either end’s namespace: forced Pod deletion leaves nothing to sweep.</td><td>The connectivity sidecar, scoped to its own Pod. No c9s process runs on any worker.</td></tr>
+              <tr><td><code>internal/hostendpoint</code></td><td>A privileged <code>hostNetwork</code> DaemonSet on every worker, talking to sidecars over a hostPath Unix socket; it built host-Link legs, cross-Pod transports, and a management hairpin from RFC 2544 space, with a 15-second orphan sweep.</td><td>Interposition made the in-Pod fabric correct, and a veth pair dies with either end’s namespace: forced Pod deletion leaves nothing to sweep.</td><td>The connectivity sidecar, scoped to its own Pod. No c9s process runs on any worker.</td></tr>
               <tr><td><code>privilegedLauncher</code></td><td>The knob that made launcher Pods privileged (default since 2024).</td><td>Deliberately <em>not</em> reinterpreted as device privilege.</td><td>Device privilege comes exclusively from what the imported kind package requests in the accepted plan.</td></tr>
-              <tr><td><code>LauncherProfile</code> + launcher vocabulary</td><td>The CRD name, <code>launcherProfileRef</code>, <code>LauncherProfileResolved</code>, “launcher node/group/pod” naming throughout.</td><td>“Rename now, once”—while every user already must touch their manifests for 0.9.</td><td><code>NodeProfile</code>, <code>profileRef</code>, <code>NodeProfileResolved</code>, “primary node / device pod”.</td></tr>
+              <tr><td><code>LauncherProfile</code> + launcher vocabulary</td><td>The CRD name, <code>launcherProfileRef</code>, <code>LauncherProfileResolved</code>, “launcher node/group/pod” naming throughout.</td><td>“Rename now, once”, while every user already must touch their manifests for 0.9.</td><td><code>NodeProfile</code>, <code>profileRef</code>, <code>NodeProfileResolved</code>, “primary node / device pod”.</td></tr>
               <tr><td>Upgrade machinery</td><td>The <code>upgrade-preflight</code> CLI, the 0.6-era legacy-cleanup pass, the legacy PVC-adoption fallback.</td><td>Zero-compat is policy: 0.9’s documented upgrade path is a full uninstall and reinstall, so in-place migration code served paths the docs forbid.</td><td>Documentation.</td></tr>
               <tr><td>SR Linux DNS-forwarding repair</td><td>A vendor-specific launcher fixup for DNS crossing the launcher Pod and the inner Docker network.</td><td>It repaired a path that no longer exists.</td><td>Generic, kind-agnostic DNS completion from the Pod’s own resolver.</td></tr>
             </tbody>
@@ -1465,27 +1550,27 @@ flowchart TD
         </div>
 
         <div class="callout warning">
-          <strong>Docker-only vocabulary now fails closed, with named diagnostics:</strong> <code>runtime</code> (“container runtime selection is Docker-only; direct device Pods always use the cluster’s container runtime”), <code>auto-remove</code>, <code>pid-mode</code>, <code>cgroupns-mode</code>, <code>cpu-set</code>, <code>stages</code>, and <code>credentials</code> are all rejected at compile time with the field name and line number—never silently dropped.
+          <strong>Docker-only vocabulary now fails closed, with named diagnostics:</strong> <code>runtime</code> (“container runtime selection is Docker-only; direct device Pods always use the cluster’s container runtime”), <code>auto-remove</code>, <code>pid-mode</code>, <code>cgroupns-mode</code>, <code>cpu-set</code>, <code>stages</code>, and <code>credentials</code> are all rejected at compile time with the field name and line number, never silently dropped.
         </div>
 
         <div class="section-head" style="margin-top:56px">
           <div class="section-index">The slurpeeth story</div>
           <div>
-            <h2>The TCP tunnel was not defeated. It was made redundant.</h2>
-            <p class="section-intro">slurpeeth was a userspace transport that stuffed Ethernet frames into TCP streams—an experimental alternative to VXLAN for clusters whose underlay clipped or fragmented encapsulated frames. Its removal took four distinct steps, and the reasoning is worth reading in order.</p>
+            <h2>Why slurpeeth was removed.</h2>
+            <p class="section-intro">slurpeeth was a userspace transport that stuffed Ethernet frames into TCP streams: an experimental alternative to VXLAN for clusters whose underlay clipped or fragmented encapsulated frames. Its removal happened in four steps.</p>
           </div>
         </div>
 
         <div class="step-list">
-          <div class="step"><div><b>Born as an experiment (Dec 2023 – Jan 2024)</b><span>Merged as feature PR #90: a per-link TCP tunnel daemon (<code>carlmontanari/slurpeeth</code>) in every launcher, on TCP 4799, selectable via the <code>connectivity</code> field—first on a <code>Connectivity</code> CRD, later on Link and Topology directly. Its purpose: dodge VXLAN MTU and fragmentation trouble.</span></div></div>
-          <div class="step"><div><b>Ported to direct Pods anyway (2026-08-19)</b><span>The direct change first <em>reimplemented</em> it as a sidecar-supervised child process—about 1,700 lines—because the pinned library’s process-global manager could not offer a resettable, race-free reconnect lifecycle inside a Pod.</span></div></div>
-          <div class="step"><div><b>Deleted the same day, together with the whole in-Pod fabric</b><span>The real discovery: kinds that own the Pod’s primary interface (SR Linux renames it and strips its address) leave the namespace without underlay routes—so <em>any</em> transport terminating there dies, VXLAN and TCP alike. The fabric moved to the worker host namespace, and both flavors became aliases of one controller-selected realization. From this moment <code>connectivity: slurpeeth</code> was accepted input that changed nothing.</span></div></div>
-          <div class="step"><div><b>Interposition dissolves the original problem (2026-08-21)</b><span>The fabric comes back in-Pod—but on the preserved <code>c9s0</code> underlay the device can never touch. MTU is now clamped below the underlay (no fragmentation to dodge), and the CNI carries plain Pod-to-Pod UDP wherever Pod traffic works at all. Every case slurpeeth existed for is covered by the one remaining transport.</span></div></div>
+          <div class="step"><div><b>Born as an experiment (Dec 2023 to Jan 2024)</b><span>Merged as feature PR #90: a per-link TCP tunnel daemon (<code>carlmontanari/slurpeeth</code>) in every launcher, on TCP 4799, selectable via the <code>connectivity</code> field, first on a <code>Connectivity</code> CRD, later on Link and Topology directly. Its purpose: dodge VXLAN MTU and fragmentation trouble.</span></div></div>
+          <div class="step"><div><b>Ported to direct Pods anyway (2026-08-19)</b><span>The direct change first <em>reimplemented</em> it as a sidecar-supervised child process (about 1,700 lines) because the pinned library’s process-global manager could not offer a resettable, race-free reconnect lifecycle inside a Pod.</span></div></div>
+          <div class="step"><div><b>Deleted the same day, together with the whole in-Pod fabric</b><span>The real discovery: kinds that own the Pod’s primary interface (SR Linux renames it and strips its address) leave the namespace without underlay routes, so <em>any</em> transport terminating there dies, VXLAN and TCP alike. The fabric moved to the worker host namespace, and both flavors became aliases of one controller-selected realization. From this moment <code>connectivity: slurpeeth</code> was accepted input that changed nothing.</span></div></div>
+          <div class="step"><div><b>Interposition dissolves the original problem (2026-08-21)</b><span>The fabric comes back in-Pod, but on the preserved <code>c9s0</code> underlay the device can never touch. MTU is now clamped below the underlay (no fragmentation to dodge), and the CNI carries plain Pod-to-Pod UDP wherever Pod traffic works at all. Every case slurpeeth existed for is covered by the one remaining transport.</span></div></div>
           <div class="step"><div><b>The selector goes (2026-08-21)</b><span>The retire change, verbatim: <em>“With slurpeeth retired to an alias of the VXLAN realization, <code>connectivity</code> selected nothing while still constraining behavior (a uint16 VNI clamp, a dead TCP/4799 fabric port) and shipping false CRD prose. The field is removed rather than frozen at a single value; a future second transport should design its own selector.”</em> The dependency left <code>go.mod</code> with the launcher.</span></div></div>
         </div>
 
         <div class="callout card-accent">
-          <strong>The moral:</strong> slurpeeth was not removed because it failed. It was removed because interposition changed the terrain—once the underlay is preserved and the MTU is clamped, a selector choosing between two identical outcomes is pure API debt. That is also the pattern of every row in the table above: the direct architecture did not defeat these components; it removed the conditions that made them necessary.
+          <strong>In short:</strong> slurpeeth was not removed because it failed. Once interposition preserved the underlay and clamped the MTU, one transport covered every case, and a selector between two identical outcomes is only API debt. The same holds for most rows in the table above: the components were not broken, the conditions that required them were removed.
         </div>
       </div>
     </section>
@@ -1493,7 +1578,7 @@ flowchart TD
     <section id="operations" data-nav="Operations">
       <div class="wrap">
         <div class="section-head">
-          <div class="section-index">09 · Status &amp; operations</div>
+          <div class="section-index">08 · Status &amp; operations</div>
           <div>
             <h2>“Ready” means the wires and the router both work.</h2>
             <p class="section-intro">c9s does not mark r1 ready just because its process exists. The wiring must match the current Link revision, every required device container must pass its checks, and all evidence must belong to the current plan.</p>
@@ -1504,12 +1589,12 @@ flowchart TD
           <div class="diagram-title"><b>What Kubernetes checks, in order</b><span>a stale Pod cannot report for a replacement Node</span></div>
           <pre class="mermaid">
 flowchart LR
-  profile["Profile found<br/> plan accepted"] --> prepared["Files prepared"]
-  prepared --> cold["Connectivity startup probe<br/> cold wires are present"]
+  profile["Profile found&lt;br/&gt; plan accepted"] --> prepared["Files prepared"]
+  prepared --> cold["Connectivity startup probe&lt;br/&gt; cold wires are present"]
   cold --> app["Kubernetes starts r1"]
-  app --> checks["Application startup probe<br/> all device checks pass"]
-  checks --> watch["Readiness probes keep running<br/> wire revision + device health"]
-  watch --> ready["Node status<br/> ready"]
+  app --> checks["Application startup probe&lt;br/&gt; all device checks pass"]
+  checks --> watch["Readiness probes keep running&lt;br/&gt; wire revision + device health"]
+  watch --> ready["Node status&lt;br/&gt; ready"]
 
   classDef gate fill:#12364a,stroke:#69a9ff,color:#edf7f8;
   classDef final fill:#173a34,stroke:#61e6cf,color:#edf7f8;
@@ -1541,10 +1626,10 @@ flowchart LR
             <thead><tr><th>Probe</th><th>Default behavior</th><th>What a failure does</th></tr></thead>
             <tbody>
               <tr><td>Connectivity startup</td><td>Every 1 second; 1 second timeout; up to 300 failures</td><td>Holds back the real device containers while initial wiring converges.</td></tr>
-              <tr><td>Connectivity readiness</td><td>Every 1 second; checks the exact current revision</td><td>Makes <code>ConnectivityReady</code> false while a Link is missing or stale—or while an interposition invariant fails: the sidecar records named conditions such as <code>CNIUnderlayPreserved</code> and <code>ManagementTranslationReady</code>, so a probe failure names the exact broken invariant.</td></tr>
+              <tr><td>Connectivity readiness</td><td>Every 1 second; checks the exact current revision</td><td>Makes <code>ConnectivityReady</code> false while a Link is missing or stale, or while an interposition invariant fails: the sidecar records named conditions such as <code>CNIUnderlayPreserved</code> and <code>ManagementTranslationReady</code>, so a probe failure names the exact broken invariant.</td></tr>
               <tr><td>Application startup</td><td>Starts with a 10 second delay and allows about 15 minutes by default; <code>startupSeconds</code> can change the allowance</td><td>Protects slow NOS boot. Readiness takes over as soon as startup succeeds.</td></tr>
               <tr><td>Application readiness</td><td>If the image supplies timing, c9s keeps it; otherwise every 10 seconds, 10 second timeout, 3 failures</td><td>Marks the container not ready. It does not use a generic liveness probe to kill the NOS.</td></tr>
-              <tr><td>Optional TCP / SSH</td><td>Targets the allocated management address—every direct Node has one now</td><td>Joins the same application probe. An SSH password is mounted from a Secret file and never placed in the plan or command line.</td></tr>
+              <tr><td>Optional TCP / SSH</td><td>Targets the allocated management address; every direct Node has one</td><td>Joins the same application probe. An SSH password is mounted from a Secret file and never placed in the plan or command line.</td></tr>
             </tbody>
           </table>
         </div>
@@ -1557,7 +1642,7 @@ flowchart LR
               <tr><td>Which build?</td><td><code>Node.status.planDigest</code> and <code>PlanApplied</code></td><td>Shows the exact accepted plan behind this status.</td></tr>
               <tr><td>Did setup finish?</td><td><code>Prepared</code> and <code>ConnectivityReady</code></td><td>Tells you whether files are staged and the requested wiring revision is in place.</td></tr>
               <tr><td>Which device part is failing?</td><td><code>status.directContainers[]</code></td><td>Shows each planned component’s Kubernetes name, state, ready flag, restart count, and image ID.</td></tr>
-              <tr><td>What is r1’s management identity?</td><td><code>Node.status.directManagement</code></td><td>Shows the interposed interface name and the allocated IPv4/IPv6 addresses and gateways—what you would SSH to from inside the lab.</td></tr>
+              <tr><td>What is r1’s management identity?</td><td><code>Node.status.directManagement</code></td><td>Shows the interposed interface name and the allocated IPv4/IPv6 addresses and gateways: what you would SSH to from inside the lab.</td></tr>
               <tr><td>Was the cable accepted?</td><td><code>Link.status.conditions[Accepted]</code></td><td>Confirms both Nodes exist, interfaces do not conflict, endpoint UIDs match, and a VNI is present when needed.</td></tr>
               <tr><td>What will this cable edit do?</td><td><code>Node.status.conditions[LinkLifecycleAction]</code></td><td>Reports Live, Restart, or Recreate while the change is being applied.</td></tr>
             </tbody>
@@ -1613,7 +1698,7 @@ kubectl get endpointslices -n LAB \
           <article class="card">
             <div class="card-kicker">If ConnectivityReady is false</div>
             <h3>Stay inside the Pod</h3>
-            <p>Check the Link’s Accepted condition and resolved UIDs, then the <code>device-connectivity</code> log—it records named conditions (<code>CNIUnderlayPreserved</code>, <code>ManagementTranslationReady</code>, per-Link state), so the failure is spelled out. For cross-Pod cables and the mesh, confirm the CNI or a NetworkPolicy is not blocking Pod-to-Pod UDP 14789.</p>
+            <p>Check the Link’s Accepted condition and resolved UIDs, then the <code>device-connectivity</code> log; it records named conditions (<code>CNIUnderlayPreserved</code>, <code>ManagementTranslationReady</code>, per-Link state), so the failure is spelled out. For cross-Pod cables and the mesh, confirm the CNI or a NetworkPolicy is not blocking Pod-to-Pod UDP 14789.</p>
           </article>
         </div>
       </div>
@@ -1622,22 +1707,22 @@ kubectl get endpointslices -n LAB \
     <section id="security" data-nav="Security">
       <div class="wrap">
         <div class="section-head">
-          <div class="section-index">10 · Security boundaries</div>
+          <div class="section-index">09 · Security boundaries</div>
           <div>
             <h2>The powerful parts are small and easy to point at.</h2>
-            <p class="section-intro">Creating interfaces, routing tables, and NAT rules needs root-like Linux rights. c9s keeps those rights in one fixed helper—the connectivity sidecar—and scopes them to the Pod it lives in. The planner and the router container never get them.</p>
+            <p class="section-intro">Creating interfaces, routing tables, and NAT rules needs root-like Linux rights. c9s keeps those rights in one fixed helper, the connectivity sidecar, and scopes them to the Pod it lives in. The planner and the router container never get them.</p>
           </div>
         </div>
 
         <div class="grid-4">
           <article class="card"><div class="card-kicker">Planner Pod</div><h3>It can describe, not launch</h3><p>No Kubernetes token, host directory, Docker/CRI socket, or privileged networking. It has a read-only root and private scratch. Network access is denied unless a declared file fetch needs a narrow exception.</p></article>
           <article class="card"><div class="card-kicker">Router container</div><h3>No Kubernetes identity</h3><p><code>automountServiceAccountToken: false</code>. The NOS does not receive cluster credentials, the worker network namespace, or a container-runtime socket.</p></article>
-          <article class="card"><div class="card-kicker">Connectivity sidecar</div><h3>Power inside this Pod only</h3><p>It is privileged so it can make interfaces, bridges, VTEPs, routing rules, and nftables state—but everything it creates lives in its own Pod’s network namespace and follows the accepted plan. It holds no Kubernetes write credentials and talks to no daemon.</p></article>
+          <article class="card"><div class="card-kicker">Connectivity sidecar</div><h3>Power inside this Pod only</h3><p>It is privileged so it can make interfaces, bridges, VTEPs, routing rules, and nftables state, but everything it creates lives in its own Pod’s network namespace and follows the accepted plan. It holds no Kubernetes write credentials and talks to no daemon.</p></article>
           <article class="card"><div class="card-kicker">The worker</div><h3>Nothing runs there</h3><p>No DaemonSet, no host socket, no host-network c9s process. The only host touch left is a <em>read-only</em> worker network-namespace handle, mounted into the sidecar only when the topology declares host Links, used solely to place one end of a veth pair.</p></article>
         </div>
 
         <div class="callout warning">
-          <strong>Branch note:</strong> the nested launcher runtime is gone entirely—there is no mode to select and no fallback. 0.9 ships as one breaking cut: the documented upgrade path is a full uninstall and reinstall, old <code>LauncherProfile</code>/<code>connectivity</code> manifests fail validation with named fields, and workers that ran the previous daemon may need a one-time cleanup of stale daemon-era interfaces (or a reboot).
+          <strong>Branch note:</strong> the nested launcher runtime is gone entirely; there is no mode to select and no fallback. 0.9 ships as one breaking cut: the documented upgrade path is a full uninstall and reinstall, old <code>LauncherProfile</code>/<code>connectivity</code> manifests fail validation with named fields, and workers that ran the previous daemon may need a one-time cleanup of stale daemon-era interfaces (or a reboot).
         </div>
       </div>
     </section>
@@ -1645,7 +1730,7 @@ kubectl get endpointslices -n LAB \
     <section id="example" data-nav="Example">
       <div class="wrap">
         <div class="section-head">
-          <div class="section-index">11 · Concrete example</div>
+          <div class="section-index">10 · Concrete example</div>
           <div>
             <h2>The small lab we have been following.</h2>
             <p class="section-intro">These are the actual objects: a shared Pod policy, two Linux Nodes, one cable between them, and one cable from r1 into its worker. A Topology or <code>clabverter --emit-crs</code> can create the same pieces for you.</p>
@@ -1718,7 +1803,7 @@ spec:
         <div class="grid-3" style="margin-top:18px">
           <article class="card"><div class="card-kicker">r1-r2</div><h3>The cable ignores placement</h3><p>Wherever the two Pods land, the cable is a per-Pod veth stitched to an in-Pod VXLAN VTEP using the Link’s allocated VNI. r1 and r2 see the same plain Ethernet interfaces either way.</p></article>
           <article class="card"><div class="card-kicker">r1-host</div><h3>The worker gets one end</h3><p><code>host</code> is a reserved endpoint name. r1’s sidecar creates the <code>eth2 ↔ c9s-r1-host</code> veth pair inside the Pod and moves the named end into the worker namespace; deleting the Pod deletes both ends.</p></article>
-          <article class="card"><div class="card-kicker">What appears alongside</div><h3>Services and the mesh</h3><p>Each Node gets a headless <code>&lt;name&gt;-vx</code> discovery Service and its exposed-port Service targeting the Pod directly. The namespace also gets one <code>c9s-management-mesh</code> Service, and both routers get management addresses on the same shared subnet—so <code>r1</code> can ping <code>r2</code>’s management address out of the box.</p></article>
+          <article class="card"><div class="card-kicker">What appears alongside</div><h3>Services and the mesh</h3><p>Each Node gets a headless <code>&lt;name&gt;-vx</code> discovery Service and its exposed-port Service targeting the Pod directly. The namespace also gets one <code>c9s-management-mesh</code> Service, and both routers get management addresses on the same shared subnet, so <code>r1</code> can ping <code>r2</code>’s management address out of the box.</p></article>
         </div>
       </div>
     </section>
@@ -1733,25 +1818,25 @@ spec:
 
         <h3 style="margin-top:42px">Implementation anchors used for this explainer</h3>
         <div class="source-list">
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/apis/v1alpha1/node.go"><span>apis/v1alpha1/node.go</span><small>Node shape, direct status, conditions</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/apis/v1alpha1/link.go"><span>apis/v1alpha1/link.go</span><small>Link endpoints, allocation, UIDs, host finalizer</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/controllers/node/direct.go"><span>controllers/node/direct.go</span><small>End-to-end direct reconciliation pipeline</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/deviceplan/registry.go"><span>internal/deviceplan/registry.go</span><small>Containerlab live kind registry and RegisterNodes</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/deviceplan/adapter.go"><span>internal/deviceplan/adapter.go</span><small>Imported Containerlab hooks and recording runtime</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/deviceplan/mapper.go"><span>internal/deviceplan/mapper.go</span><small>Imported behavior → runtime-neutral plan</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/deviceplan/readiness.go"><span>internal/deviceplan/readiness.go</span><small>Imported Containerlab IsHealthy probe</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/directpod/renderer.go"><span>internal/directpod/renderer.go</span><small>Direct Deployment, helpers, containers, volumes</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/directruntime/connectivity.go"><span>internal/directruntime/connectivity.go</span><small>Sidecar reconcile loop: revisions, fabric, mesh, re-assertion</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/directruntime/interposition.go"><span>internal/directruntime/interposition.go</span><small>Interface names, policy routing, interposition invariants</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/directruntime/fabric_linux.go"><span>internal/directruntime/fabric_linux.go</span><small>In-Pod stitched VXLAN cables and host-Link placement</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/directruntime/nat_linux.go"><span>internal/directruntime/nat_linux.go</span><small>The c9s-interposition nftables translation table</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/controllers/link/allocate.go"><span>controllers/link/allocate.go</span><small>Cluster-wide VNI allocation: retention, tie-break, freed by absence</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/internal/directruntime/runtimecli.go"><span>internal/directruntime/runtimecli.go</span><small>The exec-only docker/podman shim</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/controllers/node/directmanagement.go"><span>controllers/node/directmanagement.go</span><small>Management allocation, defaults, mesh VNI + gateway MAC</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/openspec/changes/archive/2026-08-21-direct-node-pods/design.md"><span>openspec/…/2026-08-21-direct-node-pods/design.md</span><small>Change 1: the direct runtime itself</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/openspec/changes/archive/2026-08-21-sidecar-mgmt-interposition/design.md"><span>openspec/…/2026-08-21-sidecar-mgmt-interposition/design.md</span><small>Change 2: daemonless sidecar ownership + interposition</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/openspec/changes/archive/2026-08-21-management-l2-mesh/design.md"><span>openspec/…/2026-08-21-management-l2-mesh/design.md</span><small>Change 3: the shared L2 management domain</small></a>
-          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/8d7d4be/openspec/changes/archive/2026-08-21-retire-launcher-era-surface/design.md"><span>openspec/…/2026-08-21-retire-launcher-era-surface/design.md</span><small>Change 4: NodeProfile rename and surface cleanup</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/apis/v1alpha1/node.go"><span>apis/v1alpha1/node.go</span><small>Node shape, direct status, conditions</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/apis/v1alpha1/link.go"><span>apis/v1alpha1/link.go</span><small>Link endpoints, allocation, UIDs, host finalizer</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/controllers/node/direct.go"><span>controllers/node/direct.go</span><small>End-to-end direct reconciliation pipeline</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/internal/deviceplan/registry.go"><span>internal/deviceplan/registry.go</span><small>Containerlab live kind registry and RegisterNodes</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/internal/deviceplan/adapter.go"><span>internal/deviceplan/adapter.go</span><small>Imported Containerlab hooks and recording runtime</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/internal/deviceplan/mapper.go"><span>internal/deviceplan/mapper.go</span><small>Imported behavior → runtime-neutral plan</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/internal/deviceplan/readiness.go"><span>internal/deviceplan/readiness.go</span><small>Imported Containerlab IsHealthy probe</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/internal/directpod/renderer.go"><span>internal/directpod/renderer.go</span><small>Direct Deployment, helpers, containers, volumes</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/internal/directruntime/connectivity.go"><span>internal/directruntime/connectivity.go</span><small>Sidecar reconcile loop: revisions, fabric, mesh, re-assertion</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/internal/directruntime/interposition.go"><span>internal/directruntime/interposition.go</span><small>Interface names, policy routing, interposition invariants</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/internal/directruntime/fabric_linux.go"><span>internal/directruntime/fabric_linux.go</span><small>In-Pod stitched VXLAN cables and host-Link placement</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/internal/directruntime/nat_linux.go"><span>internal/directruntime/nat_linux.go</span><small>The c9s-interposition nftables translation table</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/controllers/link/allocate.go"><span>controllers/link/allocate.go</span><small>Cluster-wide VNI allocation: retention, tie-break, freed by absence</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/internal/directruntime/runtimecli.go"><span>internal/directruntime/runtimecli.go</span><small>The exec-only docker/podman shim</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/controllers/node/directmanagement.go"><span>controllers/node/directmanagement.go</span><small>Management allocation, defaults, mesh VNI + gateway MAC</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/openspec/changes/archive/2026-08-21-direct-node-pods/design.md"><span>openspec/…/2026-08-21-direct-node-pods/design.md</span><small>Change 1: the direct runtime itself</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/openspec/changes/archive/2026-08-21-sidecar-mgmt-interposition/design.md"><span>openspec/…/2026-08-21-sidecar-mgmt-interposition/design.md</span><small>Change 2: daemonless sidecar ownership + interposition</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/openspec/changes/archive/2026-08-21-management-l2-mesh/design.md"><span>openspec/…/2026-08-21-management-l2-mesh/design.md</span><small>Change 3: the shared L2 management domain</small></a>
+          <a class="source-link" href="https://github.com/clabernetes/clabernetes/blob/11c5244/openspec/changes/archive/2026-08-21-retire-launcher-era-surface/design.md"><span>openspec/…/2026-08-21-retire-launcher-era-surface/design.md</span><small>Change 4: NodeProfile rename and surface cleanup</small></a>
         </div>
       </div>
     </section>
@@ -1781,7 +1866,7 @@ spec:
       const dark = root.dataset.theme === 'dark';
       return {
         startOnLoad: false,
-        securityLevel: 'strict',
+        securityLevel: 'loose',
         theme: 'base',
         flowchart: { htmlLabels: true, curve: 'basis', useMaxWidth: true },
         sequence: { useMaxWidth: true, wrap: true, diagramMarginX: 20, diagramMarginY: 20 },
@@ -1956,7 +2041,7 @@ spec:
       });
     });
 
-    const sections = [...document.querySelectorAll('section[id]')];
+    const sections = [...document.querySelectorAll('section[id], div.wrap[id]')];
     const navLinks = [...document.querySelectorAll('.topnav a')];
     const updateScrollState = () => {
       const max = document.documentElement.scrollHeight - window.innerHeight;
