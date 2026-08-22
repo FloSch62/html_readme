@@ -1,0 +1,1638 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A visual, plain-language tour of the daemonless Clabernetes direct runtime: device Pods, planning, the connectivity sidecar, in-Pod VXLAN fabric, interposed management, the L2 management mesh, probes, and recovery.">
+  <title>direct-c9s · Clabernetes architecture explainer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #071019;
+      --bg-soft: #0b1723;
+      --surface: rgba(15, 31, 45, .82);
+      --surface-solid: #0f1f2d;
+      --surface-2: #132839;
+      --border: rgba(157, 196, 214, .18);
+      --border-strong: rgba(111, 229, 211, .34);
+      --text: #edf7f8;
+      --muted: #9eb3bf;
+      --faint: #6f8795;
+      --teal: #61e6cf;
+      --teal-strong: #2ac7ae;
+      --blue: #69a9ff;
+      --violet: #b598ff;
+      --amber: #ffc56b;
+      --red: #ff7c83;
+      --green: #86e29a;
+      --code: #08131d;
+      --shadow: 0 22px 70px rgba(0, 0, 0, .28);
+      --radius: 18px;
+      --max: 1180px;
+    }
+
+    html[data-theme="light"] {
+      color-scheme: light;
+      --bg: #eef5f4;
+      --bg-soft: #e4efed;
+      --surface: rgba(255, 255, 255, .88);
+      --surface-solid: #ffffff;
+      --surface-2: #f4faf9;
+      --border: rgba(24, 66, 74, .15);
+      --border-strong: rgba(0, 139, 122, .3);
+      --text: #102c34;
+      --muted: #536d76;
+      --faint: #748990;
+      --teal: #007e70;
+      --teal-strong: #006d61;
+      --blue: #1769c7;
+      --violet: #6e42b7;
+      --amber: #a85f00;
+      --red: #c63742;
+      --green: #237d3d;
+      --code: #f1f7f6;
+      --shadow: 0 20px 55px rgba(31, 73, 78, .13);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 92px; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        radial-gradient(circle at 12% -8%, rgba(42, 199, 174, .18), transparent 32rem),
+        radial-gradient(circle at 92% 14%, rgba(105, 169, 255, .14), transparent 30rem),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(120, 174, 184, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(120, 174, 184, .035) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: linear-gradient(to bottom, black, transparent 84%);
+    }
+
+    a { color: var(--teal); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    a:hover { color: var(--blue); }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    :focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 6px; }
+
+    .progress {
+      position: fixed;
+      inset: 0 auto auto 0;
+      z-index: 100;
+      width: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--teal), var(--blue), var(--violet));
+      box-shadow: 0 0 14px rgba(97, 230, 207, .6);
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 90;
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 84%, transparent);
+      backdrop-filter: blur(18px) saturate(130%);
+    }
+
+    .topbar-inner {
+      width: min(var(--max), calc(100% - 32px));
+      min-height: 68px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      color: var(--text);
+      font-weight: 760;
+      letter-spacing: -.02em;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--border-strong);
+      border-radius: 11px;
+      background: linear-gradient(145deg, rgba(97, 230, 207, .18), rgba(105, 169, 255, .11));
+      color: var(--teal);
+      font: 800 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      box-shadow: inset 0 0 20px rgba(97, 230, 207, .07);
+    }
+
+    .topnav {
+      flex: 1;
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .topnav::-webkit-scrollbar { display: none; }
+    .topnav a {
+      padding: 8px 10px;
+      border-radius: 9px;
+      color: var(--muted);
+      font-size: .79rem;
+      font-weight: 650;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .topnav a:hover, .topnav a.active { background: var(--surface-2); color: var(--text); }
+
+    .theme-button {
+      width: 38px;
+      height: 38px;
+      flex: 0 0 auto;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    main { overflow: hidden; }
+    .wrap { width: min(var(--max), calc(100% - 32px)); margin-inline: auto; }
+
+    .hero {
+      position: relative;
+      padding: 88px 0 56px;
+      min-height: 620px;
+      display: grid;
+      align-items: center;
+    }
+
+    .hero::after {
+      content: "c9s";
+      position: absolute;
+      right: max(2vw, calc((100vw - var(--max)) / 2));
+      top: 34px;
+      z-index: -1;
+      color: transparent;
+      -webkit-text-stroke: 1px rgba(97, 230, 207, .10);
+      font-size: clamp(9rem, 26vw, 23rem);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -.11em;
+      user-select: none;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(280px, .6fr);
+      gap: 48px;
+      align-items: end;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      background: rgba(97, 230, 207, .07);
+      color: var(--teal);
+      font-size: .74rem;
+      font-weight: 760;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 12px currentColor; }
+
+    h1, h2, h3 { line-height: 1.12; text-wrap: balance; }
+    h1 {
+      max-width: 900px;
+      margin: 24px 0 22px;
+      font-size: clamp(3.1rem, 7.5vw, 7.25rem);
+      letter-spacing: -.065em;
+      font-weight: 840;
+    }
+    h1 span { color: var(--teal); }
+    .hero-lead { max-width: 760px; margin: 0; color: var(--muted); font-size: clamp(1.08rem, 2vw, 1.36rem); }
+
+    .hero-note {
+      padding: 22px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .hero-note .label { color: var(--teal); font: 700 .72rem/1.2 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+    .hero-note p { margin: 12px 0 0; color: var(--muted); font-size: .94rem; }
+
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 50px;
+    }
+    .fact {
+      min-height: 102px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--surface) 78%, transparent);
+    }
+    .fact b { display: block; color: var(--text); font-size: .94rem; }
+    .fact span { display: block; margin-top: 6px; color: var(--faint); font-size: .78rem; line-height: 1.35; }
+
+    section { padding: 78px 0; border-top: 1px solid var(--border); }
+    .section-head {
+      display: grid;
+      grid-template-columns: 210px minmax(0, 1fr);
+      gap: 36px;
+      margin-bottom: 34px;
+      align-items: start;
+    }
+    .section-index { color: var(--teal); font: 700 .78rem/1.2 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+    h2 { margin: 0 0 14px; font-size: clamp(2rem, 4.4vw, 3.55rem); letter-spacing: -.045em; }
+    .section-intro { max-width: 790px; margin: 0; color: var(--muted); font-size: 1.05rem; }
+
+    h3 { margin: 0 0 10px; font-size: 1.23rem; letter-spacing: -.02em; }
+    p { margin: 0 0 1em; }
+    strong { color: var(--text); }
+    code, kbd {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code);
+      color: var(--teal);
+      font: .88em/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      padding: .1em .35em;
+    }
+
+    .grid-2, .grid-3, .grid-4 { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .card {
+      position: relative;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, .08);
+    }
+    .card p:last-child, .callout p:last-child { margin-bottom: 0; }
+    .card p { color: var(--muted); font-size: .93rem; }
+    .card-kicker { margin-bottom: 14px; color: var(--teal); font: 700 .72rem/1 ui-monospace, monospace; letter-spacing: .07em; text-transform: uppercase; }
+    .card-number { position: absolute; right: 19px; top: 15px; color: var(--faint); font: 700 .77rem/1 ui-monospace, monospace; }
+    .card-accent { border-color: var(--border-strong); background: linear-gradient(145deg, rgba(97, 230, 207, .09), var(--surface)); }
+
+    .callout {
+      margin: 22px 0;
+      padding: 19px 22px;
+      border: 1px solid var(--border-strong);
+      border-left: 4px solid var(--teal);
+      border-radius: 12px;
+      background: rgba(97, 230, 207, .06);
+      color: var(--muted);
+    }
+    .callout.warning { border-color: rgba(255, 197, 107, .34); border-left-color: var(--amber); background: rgba(255, 197, 107, .06); }
+    .callout strong { color: var(--text); }
+
+    .diagram {
+      margin: 28px 0;
+      padding: 26px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background: color-mix(in srgb, var(--surface-solid) 92%, transparent);
+      box-shadow: var(--shadow);
+    }
+    .diagram-title { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+    .diagram-title b { font-size: .98rem; }
+    .diagram-title span { color: var(--faint); font-size: .76rem; }
+    .mermaid { min-width: 720px; display: grid; place-items: center; }
+    .mermaid svg { max-width: 100%; height: auto; }
+
+    .compare { display: grid; grid-template-columns: 1fr 54px 1fr; gap: 14px; align-items: stretch; margin: 28px 0; }
+    .compare-card { padding: 24px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .compare-card.old { opacity: .72; }
+    .compare-arrow { display: grid; place-items: center; color: var(--teal); font-size: 1.7rem; }
+    .stack { margin-top: 18px; display: grid; gap: 7px; }
+    .stack span { padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--code); color: var(--muted); font: .76rem/1.35 ui-monospace, monospace; text-align: center; }
+    .stack .device { border-color: var(--border-strong); color: var(--teal); }
+
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+    .pill { padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--code); color: var(--muted); font-size: .75rem; }
+
+    .table-wrap { margin: 24px 0; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    table { width: 100%; border-collapse: collapse; min-width: 720px; }
+    th, td { padding: 15px 17px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { background: var(--surface-2); color: var(--faint); font-size: .71rem; letter-spacing: .075em; text-transform: uppercase; }
+    td { color: var(--muted); font-size: .88rem; }
+    td:first-child { color: var(--text); font-weight: 650; }
+    tr:last-child td { border-bottom: 0; }
+
+    .step-list { counter-reset: step; display: grid; gap: 12px; margin: 24px 0; }
+    .step {
+      counter-increment: step;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 14px;
+      padding: 17px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+    }
+    .step::before {
+      content: counter(step, decimal-leading-zero);
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--border-strong);
+      border-radius: 9px;
+      color: var(--teal);
+      font: 700 .73rem/1 ui-monospace, monospace;
+    }
+    .step b { display: block; margin: 1px 0 4px; }
+    .step span { color: var(--muted); font-size: .88rem; }
+
+    .tabs { margin: 26px 0; }
+    .tab-list { display: flex; gap: 7px; margin-bottom: 10px; overflow-x: auto; }
+    .tab-button {
+      padding: 9px 13px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 680;
+      white-space: nowrap;
+    }
+    .tab-button[aria-selected="true"] { border-color: var(--border-strong); background: rgba(97, 230, 207, .09); color: var(--teal); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .code-block { position: relative; margin: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--code); overflow: hidden; }
+    .code-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--faint); font: 700 .69rem/1 ui-monospace, monospace; letter-spacing: .07em; text-transform: uppercase; }
+    .copy-button { border: 0; background: transparent; color: var(--teal); cursor: pointer; font: inherit; text-transform: uppercase; }
+    pre { margin: 0; padding: 18px; overflow-x: auto; color: #c9dce2; font: .82rem/1.62 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; }
+    html[data-theme="light"] pre { color: #28444c; }
+    pre code { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; }
+    .yaml-key { color: var(--blue); }
+    .yaml-value { color: var(--teal); }
+    .yaml-comment { color: var(--faint); }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 14px 0; color: var(--muted); font-size: .79rem; }
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .dot { width: 9px; height: 9px; border-radius: 3px; background: var(--teal); }
+    .dot.blue { background: var(--blue); } .dot.amber { background: var(--amber); } .dot.violet { background: var(--violet); }
+
+    .source-list { display: grid; gap: 10px; margin: 22px 0 0; }
+    .source-link { display: flex; justify-content: space-between; gap: 18px; padding: 13px 15px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); text-decoration: none; }
+    .source-link span { color: var(--text); font: .82rem/1.4 ui-monospace, monospace; }
+    .source-link small { color: var(--faint); text-align: right; }
+
+    .takeaway { padding: 40px; border: 1px solid var(--border-strong); border-radius: 24px; background: linear-gradient(135deg, rgba(97, 230, 207, .11), rgba(105, 169, 255, .06), var(--surface)); }
+    .takeaway p { max-width: 900px; color: var(--muted); font-size: 1.08rem; }
+
+    footer { padding: 40px 0 60px; border-top: 1px solid var(--border); color: var(--faint); font-size: .8rem; }
+    .footer-row { display: flex; justify-content: space-between; gap: 24px; }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+    @media (max-width: 980px) {
+      .topnav { display: none; }
+      .hero-grid { grid-template-columns: 1fr; gap: 26px; }
+      .hero-note { max-width: 620px; }
+      .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .facts .fact:last-child { grid-column: span 2; }
+      .section-head { grid-template-columns: 1fr; gap: 10px; }
+      .grid-3, .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 680px) {
+      .wrap, .topbar-inner { width: min(100% - 22px, var(--max)); }
+      .topbar-inner { min-height: 60px; }
+      .hero { padding: 58px 0 38px; min-height: auto; }
+      h1 { font-size: clamp(2.9rem, 17vw, 4.6rem); }
+      section { padding: 58px 0; }
+      .facts, .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+      .facts .fact:last-child { grid-column: auto; }
+      .compare { grid-template-columns: 1fr; }
+      .compare-arrow { transform: rotate(90deg); min-height: 36px; }
+      .diagram { padding: 16px; margin-inline: -5px; }
+      .mermaid { min-width: 650px; }
+      .takeaway { padding: 26px; }
+      .source-link, .footer-row { flex-direction: column; }
+      .source-link small { text-align: left; }
+    }
+
+    @media print {
+      :root, html[data-theme="light"] { --bg: #fff; --surface: #fff; --surface-solid: #fff; --surface-2: #f5f7f7; --text: #102c34; --muted: #405a62; --faint: #63777d; --border: #ccd8da; --code: #f5f7f7; }
+      body { background: #fff; }
+      body::before, .topbar, .progress, .theme-button, .copy-button { display: none !important; }
+      .hero { min-height: auto; padding-top: 28px; }
+      section { break-inside: auto; }
+      .card, .diagram, .table-wrap, .code-block, .callout { break-inside: avoid; box-shadow: none; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#top"><span class="brand-mark">c9s</span><span>direct-c9s explained</span></a>
+      <nav class="topnav" aria-label="Page sections">
+        <a href="#model">Big picture</a>
+        <a href="#api">Pieces</a>
+        <a href="#planning">Build</a>
+        <a href="#pod">Pod</a>
+        <a href="#links">Wires</a>
+        <a href="#management">Mgmt &amp; mesh</a>
+        <a href="#updates">Changes</a>
+        <a href="#operations">Probes</a>
+      </nav>
+      <button class="theme-button" id="themeButton" type="button" aria-label="Switch color theme" title="Switch color theme">◐</button>
+    </div>
+  </header>
+
+  <main id="top">
+    <div class="hero">
+      <div class="wrap">
+        <div class="hero-grid">
+          <div>
+            <span class="eyebrow">branch direct-c9s · HEAD 8d7d4be</span>
+            <h1>How the new <span>direct c9s</span> builds a lab.</h1>
+            <p class="hero-lead">We will follow two routers and one cable—from YAML, to Pods, to traffic crossing Kubernetes workers—and stop at each part to see what it does.</p>
+          </div>
+          <aside class="hero-note">
+            <div class="label">The short version</div>
+            <p>You describe routers and cables. c9s works out how each router must start, Kubernetes runs the real router containers, and a privileged sidecar inside each Pod connects the cables and the management network. Nothing runs on the worker itself.</p>
+          </aside>
+        </div>
+
+        <div class="facts" aria-label="Key facts">
+          <div class="fact"><b>The router is the Pod</b><span>The NOS image is a normal Kubernetes container.</span></div>
+          <div class="fact"><b>No Docker, no daemon</b><span>No dockerd inside, and no agent on any worker. All networking is Pod-local.</span></div>
+          <div class="fact"><b>One cable = one Link</b><span>Links stay separate from Nodes and can change on their own.</span></div>
+          <div class="fact"><b>Management like containerlab</b><span>Allocated addresses on one shared L2 management domain—<code>172.20.20.0/24</code> by default.</span></div>
+          <div class="fact"><b>Checks before ready</b><span>Files, wiring, containers, image health, TCP, and SSH can all be checked.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <section id="model" data-nav="Model">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-index">01 · Mental model</div>
+          <div>
+            <h2>A lab goes in. Real device Pods come out.</h2>
+            <p class="section-intro">The biggest change is easy to miss: c9s no longer starts Docker inside a launcher Pod. The network OS itself is now a normal Kubernetes container.</p>
+          </div>
+        </div>
+
+        <div class="compare">
+          <div class="compare-card old">
+            <div class="card-kicker">Previous nested runtime</div>
+            <h3>Kubernetes only saw a launcher</h3>
+            <div class="stack" aria-label="Old nested stack">
+              <span>Kubernetes Pod</span>
+              <span>launcher + dockerd + containerlab</span>
+              <span class="device">nested device container</span>
+            </div>
+            <p style="margin-top:16px;color:var(--muted)">The real router lived one layer deeper, so Kubernetes could not manage it directly.</p>
+          </div>
+          <div class="compare-arrow" aria-hidden="true">→</div>
+          <div class="compare-card">
+            <div class="card-kicker">direct-c9s runtime</div>
+            <h3>Kubernetes sees the router itself</h3>
+            <div class="stack" aria-label="New direct stack">
+              <span>Kubernetes Deployment / Pod</span>
+              <span>prepare + connectivity helpers</span>
+              <span class="device">device application container(s)</span>
+            </div>
+            <p style="margin-top:16px;color:var(--muted)">The kubelet now pulls it, starts it, restarts it, collects its logs, and reports its status.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>The whole story on one page</b><span>YAML → plan → Pod → cable</span></div>
+          <pre class="mermaid">
+flowchart TB
+  author["You apply YAML"]
+  topo["Topology<br/> (optional shortcut)"]
+  profile["NodeProfile<br/> Pod rules"]
+  nodes["Nodes<br/> the routers"]
+  links["Links<br/> the cables"]
+  tc["Topology controller"]
+  nc["Node controller"]
+  lc["Link controller"]
+  plan["Device plan<br/> what this router needs"]
+  pod["Direct device Pod<br/> prepare + sidecar + router"]
+  cni["Cluster CNI<br/> ordinary Pod network"]
+  kubelet["kubelet + cluster CRI"]
+
+  author --> topo
+  author --> nodes
+  author --> links
+  author --> profile
+  topo --> tc
+  tc --> nodes
+  tc --> links
+  tc --> profile
+  links --> lc
+  lc -->|"resolve UIDs + allocate VNI"| links
+  nodes --> nc
+  profile --> nc
+  links --> nc
+  nc --> plan
+  plan --> pod
+  kubelet -->|"pull &amp; run device images"| pod
+  pod <-->|"VXLAN between Pod IPs<br/> cables + management mesh"| cni
+
+  classDef intent fill:#12364a,stroke:#69a9ff,color:#edf7f8;
+  classDef control fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  classDef runtime fill:#2d2449,stroke:#b598ff,color:#edf7f8;
+  class author,topo,profile,nodes,links intent;
+  class tc,nc,lc,plan control;
+  class pod,cni,kubelet runtime;
+          </pre>
+        </div>
+
+        <div class="callout">
+          <strong>“Direct” does not mean “one container and nothing else.”</strong> c9s still needs small helpers to prepare config files, create interfaces, and check progress. The important part is that these helpers never start another hidden router, and they never leave the Pod: since the host-endpoint daemon was removed, <em>no c9s component runs on the worker at all</em>. The router you see in the Pod is the real one, and everything that connects it lives and dies with that Pod.
+        </div>
+
+        <div class="grid-3">
+          <article class="card"><div class="card-kicker">Who runs the router?</div><h3>Kubernetes does</h3><p>The NOS image sits in <code>Pod.spec.containers</code>. Normal <code>kubectl logs</code>, <code>exec</code>, status, and metrics go straight to it.</p></article>
+          <article class="card"><div class="card-kicker">Who knows the vendors?</div><h3>Containerlab still does</h3><p>c9s uses the Containerlab Go package to learn how SR Linux, cEOS, SR OS, Linux, and other kinds need to start. c9s does not keep a second list of vendor tricks.</p></article>
+          <article class="card"><div class="card-kicker">What if it cannot map something?</div><h3>It stops early</h3><p>If a Docker-only option has no safe Kubernetes version, c9s reports the exact problem before creating the router Pod. It does not quietly drop the setting.</p></article>
+        </div>
+
+        <div class="callout" style="margin-top:28px">
+          <strong>How this branch got here — four archived OpenSpec changes, in order:</strong>
+        </div>
+        <div class="grid-4">
+          <article class="card"><span class="card-number">1</span><div class="card-kicker">direct-node-pods</div><h3>The router becomes the Pod</h3><p>Removed the nested launcher runtime. Devices run as normal containers from a recorded, checked Containerlab plan. Cross-worker cables still used a per-worker daemon at this point.</p></article>
+          <article class="card"><span class="card-number">2</span><div class="card-kicker">sidecar-mgmt-interposition</div><h3>The daemon is deleted</h3><p>The Pod’s connectivity sidecar takes over everything: an interposed management interface with a real allocated address, in-Pod VXLAN cables, and host Links. <code>internal/hostendpoint</code> no longer exists.</p></article>
+          <article class="card"><span class="card-number">3</span><div class="card-kicker">management-l2-mesh</div><h3>Management becomes one L2 domain</h3><p>Each Pod bridges its management legs onto a mesh VTEP. Devices reach each other’s management <em>addresses</em> directly, exactly like containerlab’s management bridge.</p></article>
+          <article class="card"><span class="card-number">4</span><div class="card-kicker">retire-launcher-era-surface</div><h3>The old vocabulary goes</h3><p><code>LauncherProfile</code> → <code>NodeProfile</code>, the <code>connectivity</code> selector field is removed, upgrade-compat code is deleted, and launcher-era naming is purged. One clean 0.9 breaking cut.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="api" data-nav="API">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-index">02 · Meet the pieces</div>
+          <div>
+            <h2>A Node is a router. A Link is a cable.</h2>
+            <p class="section-intro">Put the objects for one lab in one Kubernetes namespace. Think of that namespace as the room where the lab is built.</p>
+          </div>
+        </div>
+
+        <div class="grid-4">
+          <article class="card card-accent"><span class="card-number">N</span><div class="card-kicker">The box</div><h3>Node</h3><p>One logical router or host. The Node name becomes the device name. Its spec looks much like one node from a Containerlab file: kind, image, startup config, commands, files, and ports.</p></article>
+          <article class="card card-accent"><span class="card-number">L</span><div class="card-kicker">The cable</div><h3>Link</h3><p>Two ends, for example <code>r1:e1-1</code> and <code>r2:e1-1</code>. The Link controller checks both ends and gives cross-Pod Links a tunnel number.</p></article>
+          <article class="card"><span class="card-number">P</span><div class="card-kicker">The house rules</div><h3>NodeProfile</h3><p>Shared Pod policy, referenced from a Node via <code>spec.profileRef</code>: CPU and memory, scheduling, image pull secrets, persistence, exposed ports, management addressing (<code>mgmt</code>), and probes. Renamed from the launcher-era <code>LauncherProfile</code> in this branch.</p></article>
+          <article class="card"><span class="card-number">T</span><div class="card-kicker">The shortcut</div><h3>Topology</h3><p>If you prefer one Containerlab-style file, use a Topology. Its controller splits that file into a profile, Nodes, and Links. After that, the same Node and Link controllers take over.</p></article>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>Topology is a shortcut, not a second runtime</b><span>you can also create the lower objects yourself</span></div>
+          <pre class="mermaid">
+flowchart LR
+  subgraph optional["OPTIONAL SHORTCUT"]
+    T["Topology<br/> one Containerlab-style file"]
+  end
+  subgraph primary["THE PIECES THAT ACTUALLY RUN"]
+    P["NodeProfile<br/> Pod rules"]
+    N1["Node r1"]
+    N2["Node r2"]
+    L["Link r1:e1 ↔ r2:e1"]
+  end
+  subgraph status["WHAT C9S REPORTS BACK"]
+    NS["Node status<br/> ready? · containers · exposed ports"]
+    LS["Link status<br/> accepted? · endpoints · tunnel number"]
+  end
+
+  T -->|"compiles / owns"| P
+  T -->|"compiles / owns"| N1
+  T -->|"compiles / owns"| N2
+  T -->|"compiles / owns"| L
+  P -. "explicit ref" .-> N1
+  P -. "explicit ref" .-> N2
+  L --> N1
+  L --> N2
+  N1 --> NS
+  N2 --> NS
+  L --> LS
+
+  classDef optional fill:#33284c,stroke:#b598ff,color:#edf7f8;
+  classDef primary fill:#12364a,stroke:#69a9ff,color:#edf7f8;
+  classDef observed fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  class T optional;
+  class P,N1,N2,L primary;
+  class NS,LS observed;
+          </pre>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-kicker">Why split Nodes and Links?</div>
+            <h3>Large labs do not pile into one object</h3>
+            <p>Each Node carries only its own setup. Each Link carries one cable. A router watches only the Links that touch it instead of scanning the whole lab. This needs Kubernetes 1.31 or newer.</p>
+            <div class="pill-row"><span class="pill">one Node per device</span><span class="pill">one Link per cable</span><span class="pill">watch only nearby Links</span></div>
+          </article>
+          <article class="card">
+            <div class="card-kicker">When devices must share a network stack</div>
+            <h3>Several containers can live in one Pod</h3>
+            <p><code>network-mode: container:&lt;primary&gt;</code> puts the second Node in the primary Node’s Pod. Multi-container chassis work in a similar way: one logical Node can become several visible containers.</p>
+            <div class="pill-row"><span class="pill">one shared Pod network</span><span class="pill">each Node still has status</span></div>
+          </article>
+        </div>
+
+        <div class="callout warning">
+          <strong>Two small rules matter:</strong> if a Node’s <code>profileRef</code> names a NodeProfile, that profile must exist in the same namespace—if it is missing, c9s waits and reports <code>NodeProfileResolved</code> false. And Links no longer carry a <code>connectivity</code> field: there is exactly one cross-Pod transport now, so there is nothing left to select.
+        </div>
+      </div>
+    </section>
+
+    <section id="planning" data-nav="Planning">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-index">03 · Building r1</div>
+          <div>
+            <h2>Before starting r1, c9s makes a build sheet.</h2>
+            <p class="section-intro">A kind name such as <code>nokia_srlinux</code> is not enough by itself. c9s asks the Containerlab package what images, files, commands, permissions, interfaces, and checks this exact Node needs.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>From Node YAML to a running router</b><span>c9s does the homework before it creates the Pod</span></div>
+          <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as Your YAML
+  participant C as Node controller
+  participant R as OCI registry
+  participant W as short-lived planning Pods
+  participant M as saved plan
+  participant K as Kubernetes / kubelet
+
+  U->>C: r1, its profile, files, and cables
+  C->>W: ask which images are needed
+  W-->>C: r1 image and any component images
+  C->>R: read image manifest and config only
+  R-->>C: exact digest, command, env, healthcheck
+  C->>W: make the full build sheet
+  Note over W: locked down<br/> no Kubernetes token<br/> no runtime socket
+  W-->>C: device plan or a clear error
+  C->>C: check every item has a safe direct mapping
+  C->>M: save the exact input and plan
+  C->>K: create r1 Deployment
+  K->>K: pull the NOS image and start the Pod
+          </pre>
+        </div>
+
+        <div class="step-list">
+          <div class="step"><div><b>Collect everything about r1</b><span>The controller reads the Node, its NodeProfile, its files and Secrets, and every Link that touches it. It also allocates r1’s management identity right here—an address from the profile’s <code>mgmt</code> policy, or from containerlab’s default <code>172.20.20.0/24</code> when there is none—so the plan carries the finished management picture (device-leg name and MAC, gateway, inbound ports, mesh identity) as plain data.</span></div></div>
+          <div class="step"><div><b>Find all images</b><span>Some devices have several component images. c9s may ask more than once, but stops after eight rounds. It reads image metadata; only the kubelet downloads the layers.</span></div></div>
+          <div class="step"><div><b>Let Containerlab describe the device</b><span>A short-lived Pod runs the pinned Containerlab 0.78.0 Go code and records what it asks for: containers, config files, mounts, privileges, commands, interfaces, and health checks.</span></div></div>
+          <div class="step"><div><b>Check that Kubernetes can do all of it</b><span>Each recorded operation must have a safe direct implementation. If one does not, the Node stops here with a useful error instead of starting half-correctly.</span></div></div>
+          <div class="step"><div><b>Save the exact build sheet</b><span>c9s stores the input and plan in ConfigMaps named from their content. This lets every later helper prove it is working on the same version.</span></div></div>
+          <div class="step"><div><b>Create the normal Kubernetes objects</b><span>Now c9s creates the Deployment, the <code>r1-vx</code> headless Service, any exposed-port Service, optional storage, and the first wiring revision.</span></div></div>
+        </div>
+
+        <div class="section-head" style="margin-top:56px">
+          <div class="section-index">The missing middle</div>
+          <div>
+            <h2>c9s imports Containerlab. It does not run <code>containerlab deploy</code>.</h2>
+            <p class="section-intro">The controller and its helpers contain the real Containerlab Go package, pinned here to version 0.78.0. c9s uses Containerlab’s device knowledge, then turns the result into Kubernetes work.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>Containerlab is the device expert inside c9s</b><span>the recording runtime is the translation layer</span></div>
+          <pre class="mermaid">
+flowchart LR
+  input["r1 Node<br/> image facts + files + Links"]
+  registry["Containerlab node registry<br/> RegisterNodes()"]
+  node["real Containerlab kind object<br/> for example nokia_srlinux"]
+  recorder["c9s recording runtime<br/> answers questions and writes down requests"]
+  hooks["Containerlab methods<br/> Init · PreDeploy · Deploy · GetContainers"]
+  asks["recorded requests<br/> containers · files · mounts<br/> commands · privileges · checks"]
+  plan["c9s device plan"]
+  pod["Kubernetes Deployment + Pod"]
+
+  input --> registry --> node
+  recorder <--> node
+  node --> hooks --> asks --> plan --> pod
+
+  classDef upstream fill:#2d2449,stroke:#b598ff,color:#edf7f8;
+  classDef bridge fill:#3a2f1e,stroke:#ffc56b,color:#edf7f8;
+  classDef c9s fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  class registry,node,hooks upstream;
+  class recorder bridge;
+  class input,asks,plan,pod c9s;
+          </pre>
+        </div>
+
+        <div class="callout card-accent">
+          <strong>A useful way to picture it:</strong> Containerlab is the experienced engineer who knows how an SR Linux, cEOS, or another kind must be prepared. The recording runtime gives that engineer a clipboard instead of Docker. Containerlab says what it would do; c9s writes it down, checks it, and builds the equivalent Pod.
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Containerlab code c9s calls</th><th>When it is used</th><th>What direct c9s does with it</th></tr></thead>
+            <tbody>
+              <tr><td><code>RegisterNodes</code>, <code>Init</code>, <code>GetImages</code></td><td>While discovering the device</td><td>Loads Containerlab’s live kind registry, creates the real kind object, and finds every image needed by the Node and its components.</td></tr>
+              <tr><td><code>CheckDeploymentConditions</code>, <code>VerifyStartupConfig</code>, <code>PreDeploy</code></td><td>Before the workload exists</td><td>Checks the target worker and prepares generated files in controlled scratch space.</td></tr>
+              <tr><td><code>PullImage</code>, <code>Deploy</code>, <code>UpdateConfigWithRuntimeInfo</code>, <code>GetContainers</code></td><td>During planning</td><td>The fake runtime records the calls. No image is pulled and no container is launched here. The recording becomes the device plan.</td></tr>
+              <tr><td><code>PostDeploy</code></td><td>After the real application starts</td><td>c9s opens the same kind again inside the application container and applies only actions already allowed by the plan.</td></tr>
+              <tr><td><code>DeployEndpoints</code>, <code>PostDeployEndpoints</code></td><td>When interfaces are connected</td><td>The connectivity helper calls the imported endpoint logic with the Pod network namespace as its target.</td></tr>
+              <tr><td><code>IsHealthy</code></td><td>On startup and readiness checks</td><td>The probe runner asks Containerlab’s own kind-specific health check from inside the real application container.</td></tr>
+              <tr><td><code>SaveConfig</code></td><td>When a configuration save is requested</td><td>The save path uses the imported kind code too, under the same accepted plan.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="grid-3">
+          <article class="card"><div class="card-kicker">What is reused</div><h3>Containerlab’s kind knowledge</h3><p>The kind registry, node objects, config generation, component layout, endpoint hooks, health checks, and save behavior stay in the Containerlab package. c9s does not copy that vendor logic.</p></article>
+          <article class="card"><div class="card-kicker">What is replaced</div><h3>The runtime underneath it</h3><p>Containerlab sees a small runtime that looks familiar, but it records requests instead of talking to Docker. A tiny local shim supports only planned <code>docker exec</code>-style calls; there is no daemon or socket.</p></article>
+          <article class="card"><div class="card-kicker">Who pulls the image</div><h3>The kubelet, once</h3><p>c9s reads the OCI manifest and config to learn the digest, command, environment, and health check. A recorded <code>PullImage</code> does no download. The kubelet pulls the real layers for the Pod.</p></article>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>The same package appears again after planning</b><span>plan first, then checked execution</span></div>
+          <pre class="mermaid">
+sequenceDiagram
+  participant P as Planner Pod
+  participant C as Containerlab package
+  participant D as Saved device plan
+  participant I as Preparation helper
+  participant A as Real application container
+  participant N as Connectivity helper
+
+  P->>C: run discovery, checks, PreDeploy and Deploy
+  C-->>P: runtime requests are recorded
+  P->>D: save the accepted requests and digests
+  I->>C: repeat file generation
+  I->>D: prove the files match the plan
+  A->>C: run PostDeploy and IsHealthy
+  C->>D: each action must still be allowed
+  N->>C: run endpoint hooks for the Pod namespace
+  C->>D: each endpoint action must still be allowed
+          </pre>
+        </div>
+
+        <div class="callout warning">
+          <strong>The important boundary:</strong> planning is not blindly replaying a shell script. Later helpers rebuild the same Containerlab kind from the saved input, call the right hook for that moment, and reject work that does not match the accepted plan.
+        </div>
+
+        <div class="grid-3">
+          <article class="card"><div class="card-kicker">One path for every kind</div><h3>No vendor switch in c9s</h3><p>The same recorder handles every imported kind. If a future Containerlab kind asks for operations c9s already understands, it uses the same path without new vendor code.</p></article>
+          <article class="card"><div class="card-kicker">Repeatable</div><h3>Same input, same plan</h3><p>Image digests, file information, certificates, interfaces, and settings are part of the input. Running the planner again must produce the same plan.</p></article>
+          <article class="card"><div class="card-kicker">Safe place to run package code</div><h3>The planner cannot launch anything</h3><p>It has no Docker or CRI socket, no host path, no Kubernetes token, and no privileged network access. It can describe work, not perform it on the worker.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="pod" data-nav="Pod">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-index">04 · Pod anatomy</div>
+          <div>
+            <h2>Now r1 gets a Pod of its own.</h2>
+            <p class="section-intro">Three things happen in order: prepare the files, build the network, start the router. The connectivity sidecar is the star of this branch—it owns <em>all</em> of r1’s networking (management, cables, host links) and stays running beside the router for later changes.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>Inside the r1 Pod</b><span>Kubernetes starts it from left to right — nothing runs outside it</span></div>
+          <pre class="mermaid">
+flowchart LR
+  subgraph pod["Direct device Pod · shared network namespace"]
+    prep["① prepare-device-plan<br/> put files in place<br/> check their digests"]
+    conn["② device-connectivity<br/> interpose management<br/> build cables · keep watching"]
+    launch["③ launch boundary<br/> tiny c9s helper<br/> pre-start ops, then exec"]
+    app["④ r1 process<br/> the real NOS image<br/> the real device process"]
+    state[("connectivity state<br/> + named conditions")]
+    artifacts[("prepared artifacts")]
+    prep -->|"must complete"| conn
+    conn -->|"startup gate opens"| launch
+    launch -->|"execs into"| app
+    prep --> artifacts --> app
+    conn <--> state
+  end
+  plan[("immutable plan + input")]
+  revision[("mutable connectivity revision")]
+  kubelet["kubelet / CRI"]
+  cni["cluster CNI<br/> ordinary Pod interface"]
+  plan --> prep
+  plan --> conn
+  plan --> launch
+  revision --> conn
+  conn -->|"preserves as c9s0<br/> builds VTEPs on top"| cni
+  kubelet --> launch
+
+  classDef helper fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  classDef app fill:#2d2449,stroke:#b598ff,color:#edf7f8;
+  classDef data fill:#12364a,stroke:#69a9ff,color:#edf7f8;
+  class prep,conn,launch helper;
+  class app,kubelet,cni app;
+  class state,artifacts,plan,revision data;
+          </pre>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Component</th><th>Lifetime</th><th>Authority</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>prepare-device-plan</code> (init)</td><td>Runs once, then exits</td><td>Very small rights: only file ownership changes in its private volumes</td><td>Re-runs the imported file generation with the allocated management identity, checks every path and digest against the plan, and installs the c9s lifecycle helper binary.</td></tr>
+              <tr><td><code>device-connectivity</code> (native sidecar)</td><td>Restartable init container that starts before r1 and stays running</td><td>Privileged fixed c9s image; all power stays inside this Pod’s namespace</td><td>Renames the CNI interface to <code>c9s0</code>, interposes the management interface, builds the management mesh, realizes every cable as in-Pod veth + VXLAN, places host-Link legs, runs Containerlab endpoint hooks, and reconciles new Link revisions and mesh peers on a 1-second tick.</td></tr>
+              <tr><td>Launch boundary</td><td>A moment at container start</td><td>Runs as the application container’s own identity</td><td>Every application container’s command is the c9s helper (<code>device-runtime launch</code>): it applies planned pre-start mounts, restores the conventional open-file limit imported processes assume, then <code>exec</code>s the image’s real process. This closes a kubelet PostStart race.</td></tr>
+              <tr><td>r1 application</td><td>Normal Kubernetes container</td><td>The permissions and resources accepted in the plan; no Kubernetes token</td><td>Runs the actual NOS image. Kubernetes owns the pull, process, status, restarts, logs, probes, and exec.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout card-accent">
+          <strong>What is deliberately missing from this table: anything on the worker.</strong> The previous iteration of this branch ran a privileged host-endpoint DaemonSet on every Linux worker to build veth halves, patches, VXLAN endpoints, and management loops in the host network namespace. That daemon—its package, chart, CLI, Unix socket, and orphan sweeper—has been deleted. The sidecar realizes everything inside the Pod, so tearing down a Pod tears down its networking by construction.
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-kicker">When Nodes share networking</div>
+            <h3>Several devices can share one Pod</h3>
+            <p><code>network-mode: container:&lt;primary&gt;</code> puts each grouped Node in the primary Node’s Pod, so they share the same network namespace. They still keep separate status and Services.</p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">When one Node has parts</div>
+            <h3>One device can need several containers</h3>
+            <p>A chassis may have a controller and cards. Containerlab tells the plan about those components, and c9s puts all of them in the Pod. The Node is ready only when every required part is ready.</p>
+          </article>
+        </div>
+
+        <div class="callout">
+          <strong>Small quality-of-life detail:</strong> plain <code>kubectl logs</code> and <code>kubectl exec</code> choose the main device container. Add <code>-c</code> only when you want a card, a grouped device, or the connectivity helper.
+        </div>
+      </div>
+    </section>
+
+    <section id="links" data-nav="Links">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-index">05 · Links &amp; fabric</div>
+          <div>
+            <h2>The r1—r2 cable never leaves the Pods.</h2>
+            <p class="section-intro">r1 and r2 always see an ordinary Ethernet interface. Every cross-Pod cable has the same hidden shape now: a veth pair inside each Pod, stitched to an in-Pod VXLAN tunnel endpoint that rides the ordinary Pod network. Same worker or different workers—one path, no special cases.</p>
+          </div>
+        </div>
+
+        <div class="callout card-accent">
+          <strong>Why the tunnel can finally live inside the Pod:</strong> the old worry was that a NOS renames the Pod’s primary interface or strips its IP and routes, cutting off any tunnel built on it. Interposition (next section) removes that hazard: the sidecar renames the CNI interface to <code>c9s0</code> before the device ever starts, and the device is handed a <em>synthetic</em> <code>eth0</code> instead. The device can do whatever it likes to the interfaces it sees—the Kubernetes underlay it never sees stays intact, so the VXLAN endpoints on top of it stay reachable. That is what made the per-worker daemon unnecessary.
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>The same Link, three possible shapes</b><span>placement no longer changes the transport</span></div>
+          <pre class="mermaid">
+flowchart TD
+  L["r1:eth1 ↔ r2:eth1<br/> accepted Link"]
+  H{"One endpoint is<br/> reserved node 'host'?"}
+  P{"Both endpoints in<br/> the same Pod?"}
+  host["Host Link<br/> veth pair made in the Pod;<br/> worker end placed through a<br/> read-only netns handle"]
+  local["Same Pod<br/> one veth pair inside it"]
+  vx["Different Pods<br/> per-Pod veth + in-Pod VXLAN VTEP<br/> same worker or not — same path"]
+
+  L --> H
+  H -->|yes| host
+  H -->|no| P
+  P -->|yes| local
+  P -->|no| vx
+
+  classDef decision fill:#3a2f1e,stroke:#ffc56b,color:#edf7f8;
+  classDef path fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  class H,P decision;
+  class host,local,vx path;
+          </pre>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Link shape</th><th>Device-visible state</th><th>Transport / owner</th><th>Tunnel ID</th></tr></thead>
+            <tbody>
+              <tr><td>Same Pod</td><td>A normal named interface at both ends</td><td>One veth pair directly inside the shared network namespace</td><td>None</td></tr>
+              <tr><td>Different Pods</td><td>A normal veth leg in each Pod</td><td>The sidecar stitches the device leg to an in-Pod VXLAN VTEP with <code>tc mirred</code>. The two VTEPs exchange wrapped Ethernet frames <em>between Pod IPs</em> on UDP 14789; the CNI carries them like any other Pod traffic</td><td>One cluster-wide VNI (≤ 16,000,000) stored in <code>Link.status.tunnelID</code></td></tr>
+              <tr><td>Host endpoint</td><td>The requested interface inside the device Pod</td><td>The sidecar creates the veth pair in the Pod and moves one end into the worker’s namespace through a read-only handle, named as declared (<code>host:&lt;name&gt;</code>)</td><td>None</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="tabs" data-tabs>
+          <div class="tab-list" role="tablist" aria-label="Fabric examples">
+            <button class="tab-button" type="button" role="tab" aria-selected="true" data-tab="cross-pod">Cross-Pod cable</button>
+            <button class="tab-button" type="button" role="tab" aria-selected="false" data-tab="peer-discovery">Finding the peer</button>
+            <button class="tab-button" type="button" role="tab" aria-selected="false" data-tab="host-link">Host Link</button>
+          </div>
+          <div class="tab-panel active" role="tabpanel" data-panel="cross-pod">
+            <div class="diagram" style="margin-top:0">
+              <div class="diagram-title"><b>One cable between two Pods</b><span>everything shown here lives inside a Pod network namespace</span></div>
+              <pre class="mermaid">
+flowchart LR
+  subgraph pa["Pod r1 network namespace"]
+    r1["r1 application"]
+    e1["e1-1<br/> device leg"]
+    sa["c9ss·hash<br/> sidecar stitch leg"]
+    va["c9sx·hash VTEP<br/> VNI 42 · UDP 14789"]
+    ua["c9s0<br/> preserved CNI interface"]
+    r1 --- e1
+    e1 ===|"veth pair"| sa
+    sa <-->|"tc mirred"| va
+    va --- ua
+  end
+  subgraph pb["Pod r2 network namespace"]
+    ub["c9s0<br/> preserved CNI interface"]
+    vb["c9sx·hash VTEP<br/> VNI 42 · UDP 14789"]
+    sb["c9ss·hash<br/> sidecar stitch leg"]
+    e2["e1-1<br/> device leg"]
+    r2["r2 application"]
+    ub --- vb
+    vb <-->|"tc mirred"| sb
+    sb ===|"veth pair"| e2
+    e2 --- r2
+  end
+  ua == "ordinary Pod-to-Pod traffic<br/> Ethernet wrapped in VXLAN, carried by the CNI" ==> ub
+
+  classDef device fill:#2d2449,stroke:#b598ff,color:#edf7f8;
+  classDef sidecar fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  classDef underlay fill:#12364a,stroke:#69a9ff,color:#edf7f8;
+  class r1,r2,e1,e2 device;
+  class sa,sb,va,vb sidecar;
+  class ua,ub underlay;
+              </pre>
+            </div>
+            <p style="color:var(--muted);font-size:.92rem">The device may rename, adopt, or move its leg (<code>e1-1</code>)—that is normal NOS behavior. The stitch leg and the VTEP stay sidecar-owned and are converged idempotently. This is containerlab’s proven “stitched VXLAN” model, moved into Kubernetes. Whether the two Pods share a worker is invisible here: the CNI simply delivers Pod-to-Pod UDP either way.</p>
+          </div>
+          <div class="tab-panel" role="tabpanel" data-panel="peer-discovery">
+            <div class="diagram" style="margin-top:0">
+              <div class="diagram-title"><b>How r1’s VTEP finds r2</b><span>a Service name, not a hard-coded address</span></div>
+              <pre class="mermaid">
+flowchart LR
+  plan["interface plan<br/> peer transport = r2-vx.LAB…"]
+  conn["device-connectivity sidecar<br/> 1 s reconcile tick"]
+  svc["headless Service r2-vx<br/> publishes the Pod address<br/> even before readiness"]
+  vtep["c9sx·hash VTEP<br/> remote = r2's current Pod IP"]
+
+  plan --> conn
+  conn -->|"resolve on every tick"| svc
+  svc --> conn
+  conn -->|"set / update remote"| vtep
+
+  classDef c9s fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  classDef data fill:#12364a,stroke:#69a9ff,color:#edf7f8;
+  class conn,vtep c9s;
+  class plan,svc data;
+              </pre>
+            </div>
+            <p style="color:var(--muted);font-size:.92rem">Each Node owns a headless <code>&lt;name&gt;-vx</code> discovery Service. Because the plan stores the stable Service <em>name</em> rather than an address, a rescheduled or restarted peer converges automatically: the next tick resolves the new Pod IP and updates the VTEP in place. No Pod restarts, no replanning.</p>
+          </div>
+          <div class="tab-panel" role="tabpanel" data-panel="host-link">
+            <div class="diagram" style="margin-top:0">
+              <div class="diagram-title"><b>A cable from r1 into its worker</b><span><code>r1:eth1 ↔ host:c9s-uplink0</code></span></div>
+              <pre class="mermaid">
+flowchart LR
+  link["Link CR<br/> r1:eth1 ↔ host:c9s-uplink0"]
+  helper["device-connectivity sidecar"]
+  handle["read-only worker netns handle<br/> mounted only when the topology<br/> declares host Links"]
+  podif["r1 Pod netns<br/> eth1"]
+  hostif["worker host netns<br/> c9s-uplink0"]
+
+  link --> helper
+  helper -->|"create veth pair in the Pod"| podif
+  helper -->|"move one end through"| handle
+  handle --> hostif
+  podif ===|"one veth pair, two namespaces"| hostif
+
+  classDef c9s fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  classDef data fill:#12364a,stroke:#69a9ff,color:#edf7f8;
+  class helper,podif,hostif c9s;
+  class link,handle data;
+              </pre>
+            </div>
+            <p style="color:var(--muted);font-size:.92rem">A veth pair dies when either end’s namespace dies. So when the Pod is deleted—gracefully or by force—the worker-side end vanishes with it. The old daemon needed a 15-second orphan sweep to guarantee this; the new design gets it for free, by construction.</p>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <article class="card"><div class="card-kicker">Naming you will see in <code>ip link</code></div><h3>Everything sidecar-owned says c9s</h3><p><code>c9s0</code> is the preserved CNI interface. Per cable: <code>c9ss…</code> stitch leg, <code>c9sx…</code> VTEP, <code>c9sh…</code> a host-Link leg in transit. Management adds <code>c9sr0</code>, <code>c9sb0</code>, <code>c9sm0</code>, <code>c9sd0</code>, <code>c9sg0</code> (next section).</p></article>
+          <article class="card"><div class="card-kicker">Every interface has an owner</div><h3>UIDs travel into Linux</h3><p>c9s writes ownership into interface aliases and converges only what it owns. A new object with the same name cannot accidentally take over an old interface, and a retried update reaches the same state.</p></article>
+          <article class="card"><div class="card-kicker">Hardening baked in</div><h3>Checksums and MTU are handled</h3><p>TX checksum offload is disabled on the synthetic legs (VXLAN-stitched frames must carry real checksums), and the fabric MTU is clamped to the underlay minus VXLAN overhead.</p></article>
+        </div>
+
+        <div class="callout warning">
+          <strong>The <code>connectivity</code> field is gone.</strong> Earlier drafts accepted <code>vxlan</code> and <code>slurpeeth</code> as Link/Topology settings. With exactly one cross-Pod realization left—in-Pod stitched VXLAN—the selector selected nothing, so this branch removes the field and the slurpeeth transport outright. Old manifests that still set it now fail CRD validation with a named field.
+        </div>
+      </div>
+    </section>
+
+    <section id="management" data-nav="Management">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-index">06 · Management plane &amp; mesh</div>
+          <div>
+            <h2>r1 gets a real management network, not a borrowed Pod IP.</h2>
+            <p class="section-intro">The Pod address is no longer r1’s identity. The controller allocates a containerlab-style management address, the sidecar <em>interposes</em> a synthetic management interface carrying it before the NOS starts, and every Pod in the namespace is bridged into one shared L2 management domain—exactly what containerlab’s management bridge gives you on Docker.</p>
+          </div>
+        </div>
+
+        <div class="callout card-accent">
+          <strong>The trick in one sentence:</strong> the sidecar renames the CNI-created interface to <code>c9s0</code> and keeps it for Kubernetes transport, then hands the device a freshly made veth <code>eth0</code> that carries the allocated management address (say <code>172.20.20.11/24</code>). The NOS adopts it exactly as it would a physical management port—lease synthesis, <code>mgmt0.0</code> addressing, SSH, all of it—while the Kubernetes underlay stays untouchable one interface away. This pattern (validated in spikes against unmodified SR Linux, SR-SIM, and cEOS) is what the change calls <em>interposition</em>.
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>Inside one interposed Pod</b><span>every interface here is created by the sidecar, except the one the CNI made</span></div>
+          <pre class="mermaid">
+flowchart TB
+  subgraph pod["Pod r1 network namespace"]
+    app["NOS process"]
+    dev["eth0 · device leg<br/> 172.20.20.11/24<br/> vendor MAC when the kind pins one"]
+    d0["c9sd0<br/> normal bridge port"]
+    br["c9sb0 · pure-L2 bridge<br/> no IP · pinned MAC"]
+    g0["c9sg0<br/> isolated bridge port"]
+    r0["c9sr0 · gateway leg<br/> 172.20.20.1 · deterministic MAC 02:c9:…"]
+    m0["c9sm0 · mesh VTEP<br/> isolated bridge port"]
+    u0["c9s0<br/> preserved CNI interface · Pod IP"]
+    nat["nftables table c9s-interposition<br/> dstnat −110 · srcnat 90"]
+    pol["policy routing<br/> rules 900/901/902 → table 20000"]
+
+    app --- dev
+    dev ===|"veth pair"| d0
+    d0 --- br
+    br --- g0
+    g0 ===|"veth pair"| r0
+    br --- m0
+    r0 --- pol
+    pol --- u0
+    nat -. "translates at the gateway hop" .- r0
+  end
+  mesh["management mesh<br/> peer Pods · same VNI"]
+  cluster["cluster network<br/> Services · DNS · kubectl"]
+  m0 ==>|"VXLAN over c9s0<br/> head-end replication"| mesh
+  u0 ==> cluster
+
+  classDef device fill:#2d2449,stroke:#b598ff,color:#edf7f8;
+  classDef sidecar fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  classDef underlay fill:#12364a,stroke:#69a9ff,color:#edf7f8;
+  classDef rules fill:#3a2f1e,stroke:#ffc56b,color:#edf7f8;
+  class app,dev device;
+  class d0,br,g0,r0,m0 sidecar;
+  class u0,mesh,cluster underlay;
+  class nat,pol rules;
+          </pre>
+        </div>
+
+        <div class="grid-3">
+          <article class="card"><div class="card-kicker">Where the address comes from</div><h3>Allocated, never improvised</h3><p>The NodeProfile’s <code>mgmt</code> policy (subnets, gateway, static <code>mgmt-ipv4</code>/<code>mgmt-ipv6</code>) wins when present. Without one, c9s allocates from containerlab’s default <code>172.20.20.0/24</code> with the gateway at the first usable address. Management config renders at plan time through each kind’s own containerlab templates; the only runtime-completed input left is DNS resolver discovery from the Pod.</p></article>
+          <article class="card"><div class="card-kicker">Why exposure still works</div><h3>NAT at the gateway hop</h3><p>The device listens on its management address, but the cluster only knows the Pod IP. The sidecar’s <code>c9s-interposition</code> nftables table DNATs declared inbound ports from the Pod address to the management address and SNATs outbound management traffic back to the Pod address. Its hook priorities (−110/90) sit ahead of anything a device programs into its own iptables—proven against cEOS, which programs plenty.</p></article>
+          <article class="card"><div class="card-kicker">Why kubectl keeps working</div><h3>Transport is protected</h3><p>A sidecar-owned policy routing table (20000) carries Kubernetes transport, selected by three rules: traffic entering via the gateway leg toward cluster CIDRs, Pod-sourced traffic such as VTEP encapsulation, and traffic to the Pod’s own management address. A device may wipe the main routing table; probes, logs, and tunnels keep flowing.</p></article>
+        </div>
+
+        <div class="section-head" style="margin-top:56px">
+          <div class="section-index">The mesh</div>
+          <div>
+            <h2>One flat management LAN across every Pod.</h2>
+            <p class="section-intro">Interposition alone would leave each Pod a private island of <code>172.20.20.0/24</code>. Real labs hardcode peer management addresses—gnmic targets, syslog collectors, a plain <code>ping</code>. So each Pod’s bridge also carries a mesh VTEP (<code>c9sm0</code>), and the whole namespace becomes one broadcast domain: ARP resolves the peer device’s actual MAC, and any protocol runs device-to-device in both directions.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>Three Pods, one management LAN</b><span>gateways stay Pod-local; devices see each other directly</span></div>
+          <pre class="mermaid">
+flowchart TB
+  subgraph p1["Pod r1"]
+    d1["r1 · .11"]
+    b1["c9sb0"]
+    gw1["gateway .1<br/> isolated port"]
+    v1["c9sm0 VTEP"]
+    d1 --- b1
+    b1 --- v1
+    b1 -. "isolation blocks<br/> gateway ↔ mesh" .- gw1
+  end
+  subgraph p2["Pod r2"]
+    d2["r2 · .12"]
+    b2["c9sb0"]
+    gw2["gateway .1<br/> isolated port"]
+    v2["c9sm0 VTEP"]
+    d2 --- b2
+    b2 --- v2
+    b2 -.- gw2
+  end
+  subgraph p3["Pod gnmic"]
+    d3["collector · .13"]
+    b3["c9sb0"]
+    gw3["gateway .1<br/> isolated port"]
+    v3["c9sm0 VTEP"]
+    d3 --- b3
+    b3 --- v3
+    b3 -.- gw3
+  end
+  svc["headless Service c9s-management-mesh<br/> lists every direct device Pod address"]
+  v1 <==>|"VNI derived from namespace"| v2
+  v2 <==> v3
+  v1 <==> v3
+  svc -.->|"resolved every tick → FDB entries"| v1
+  svc -.-> v2
+  svc -.-> v3
+
+  classDef device fill:#2d2449,stroke:#b598ff,color:#edf7f8;
+  classDef sidecar fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  classDef data fill:#12364a,stroke:#69a9ff,color:#edf7f8;
+  class d1,d2,d3 device;
+  class b1,b2,b3,gw1,gw2,gw3,v1,v2,v3 sidecar;
+  class svc data;
+          </pre>
+        </div>
+
+        <div class="grid-4">
+          <article class="card"><div class="card-kicker">Peer discovery</div><h3>A Service, not a plan</h3><p>Peers are deliberately <em>not</em> plan data—a planned peer list would recreate every Pod whenever a Node joins or leaves. Instead one namespace-scoped headless Service (<code>c9s-management-mesh</code>, not-ready addresses published) lists all member Pods; each sidecar resolves it on its tick and reconciles head-end-replication FDB entries exactly. Scale-out and scale-in restart nothing.</p></article>
+          <article class="card"><div class="card-kicker">VNI allocation</div><h3>Collision-free by construction</h3><p>The mesh VNI is derived from the namespace name into the range above 16,000,000—the ceiling of the Link allocator—so a management mesh can never collide with any cable’s tunnel ID. The gateway MAC (<code>02:c9:…</code>) is derived the same way, identical in every Pod of the namespace.</p></article>
+          <article class="card"><div class="card-kicker">Gateway containment</div><h3>Isolation, not netfilter</h3><p>The gateway port and mesh port are both <em>isolated</em> bridge ports, so gateway↔mesh traffic is structurally impossible: every Pod answers the gateway address locally with the same deterministic MAC, and no gateway frame ever crosses the mesh. This uses core bridge port isolation because some kernels (WSL2 among them) ship no bridge netfilter.</p></article>
+          <article class="card"><div class="card-kicker">Kernel gotchas, solved</div><h3>ARP flux and br_netfilter</h3><p><code>arp_ignore=1</code> on every mesh element (device leg included) keeps a single gateway ARP from getting three answers. And because Kubernetes nodes load <code>br_netfilter</code>, the sidecar disables <code>bridge-nf-call-*</code> inside the Pod namespace so bridged frames are not re-run through conntrack—found and fixed during cluster conformance.</p></article>
+        </div>
+
+        <div class="callout warning">
+          <strong>What deliberately does not happen:</strong> the management prefix is not routed off-cluster (reach devices from outside via their exposed Services), IPv4 is the translated path (an IPv6 management address is assigned to the device leg untranslated), and the mesh carries intra-topology management traffic only. Name-based reachability coexists throughout: every Node keeps its namespace-local Services, and declared <code>aliases</code> add extra headless names.
+        </div>
+      </div>
+    </section>
+
+    <section id="updates" data-nav="Updates">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-index">07 · Live updates</div>
+          <div>
+            <h2>Moving a cable does not always rebuild the router.</h2>
+            <p class="section-intro">When a Link changes, c9s makes a new plan and asks the imported Containerlab kind how disruptive the change must be. The answer is Live, Restart, or Recreate.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>What happens after a Link edit</b><span>shared Pods use the most disruptive answer from their affected Nodes</span></div>
+          <pre class="mermaid">
+flowchart TD
+  change["Something changed"]
+  replan["Make and check a new plan"]
+  only{"Was it only<br/> a Link change?"}
+  mode{"Containerlab kind says<br/> Live, Restart, or Recreate"}
+  live["LIVE<br/> wiring helper changes it<br/> while r1 keeps running"]
+  restart["RESTART<br/> change the wire, stop r1<br/> kubelet restarts its container"]
+  recreate["RECREATE<br/> replace the Pod using<br/> the new full plan"]
+  fail["Stop and report an error<br/> if the helper cannot prove<br/> it has the exact new plan"]
+
+  change --> replan --> only
+  only -->|no| recreate
+  only -->|yes| mode
+  mode -->|Live| live
+  mode -->|Restart| restart
+  mode -->|Recreate| recreate
+  live -->|"digest mismatch"| fail
+  restart -->|"helper not ready"| fail
+
+  classDef decision fill:#3a2f1e,stroke:#ffc56b,color:#edf7f8;
+  classDef good fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  classDef caution fill:#3a2f1e,stroke:#ffc56b,color:#edf7f8;
+  classDef stop fill:#4a2329,stroke:#ff7c83,color:#edf7f8;
+  class only,mode decision;
+  class live good;
+  class restart,recreate caution;
+  class fail stop;
+          </pre>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Mode</th><th>Pod retained?</th><th>Application process</th><th>Mechanism</th></tr></thead>
+            <tbody>
+              <tr><td>Live</td><td>Yes</td><td>Keeps running</td><td>The controller updates the wiring revision. The helper checks its digest and changes the interfaces in place.</td></tr>
+              <tr><td>Restart</td><td>Yes</td><td>Kubelet restarts only the device container</td><td>The helper finishes the new wiring first. c9s then sends the planned stop signal to PID 1; Kubernetes performs the restart.</td></tr>
+              <tr><td>Recreate</td><td>No</td><td>Starts fresh in a replacement Pod</td><td>c9s stores a new full plan and rolls the Recreate Deployment. Changes to the Node, image, profile, or files take this path.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout warning">
+          <strong>A retry is safe:</strong> the Link, Nodes, Pod, and plan all carry exact UIDs or digests. Removing or moving a cable cleans only the old cable’s Linux objects. Repeating the same update reaches the same result.
+        </div>
+
+        <div class="callout">
+          <strong>And some changes need no plan at all:</strong> a peer Pod being rescheduled (its VTEP remote follows the <code>&lt;peer&gt;-vx</code> Service) and Nodes joining or leaving the management mesh (FDB entries follow the <code>c9s-management-mesh</code> Service) both converge on the sidecar’s one-second tick, with zero restarts of unaffected Pods.
+        </div>
+      </div>
+    </section>
+
+    <section id="operations" data-nav="Operations">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-index">08 · Status &amp; operations</div>
+          <div>
+            <h2>“Ready” means the wires and the router both work.</h2>
+            <p class="section-intro">c9s does not mark r1 ready just because its process exists. The wiring must match the current Link revision, every required device container must pass its checks, and all evidence must belong to the current plan.</p>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <div class="diagram-title"><b>What Kubernetes checks, in order</b><span>a stale Pod cannot report for a replacement Node</span></div>
+          <pre class="mermaid">
+flowchart LR
+  profile["Profile found<br/> plan accepted"] --> prepared["Files prepared"]
+  prepared --> cold["Connectivity startup probe<br/> cold wires are present"]
+  cold --> app["Kubernetes starts r1"]
+  app --> checks["Application startup probe<br/> all device checks pass"]
+  checks --> watch["Readiness probes keep running<br/> wire revision + device health"]
+  watch --> ready["Node status<br/> ready"]
+
+  classDef gate fill:#12364a,stroke:#69a9ff,color:#edf7f8;
+  classDef final fill:#173a34,stroke:#61e6cf,color:#edf7f8;
+  class profile,plan,prepared,conn,containers,probe gate;
+  class ready final;
+          </pre>
+        </div>
+
+        <div class="grid-3">
+          <article class="card">
+            <div class="card-kicker">Gate 1 · wiring</div>
+            <h3>The router waits for its interfaces</h3>
+            <p>The connectivity helper has a startup probe every second, with up to 300 failures. Regular application containers do not start until the cold Link set is installed. Its readiness probe then checks the currently requested Link revision every second.</p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">Gate 2 · device</div>
+            <h3>Several checks become one probe</h3>
+            <p>Inside r1, the c9s probe runner performs the image’s OCI health check, Containerlab’s kind-specific <code>IsHealthy</code>, and optional NodeProfile TCP and SSH checks. Every configured check must pass.</p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">Gate 3 · Node status</div>
+            <h3>The controller checks the owner</h3>
+            <p>Kubernetes marks each application container ready. The Node controller then checks the Pod UID, plan digest, helper state, and all required component containers before publishing <code>status.readiness: ready</code>.</p>
+          </article>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Probe</th><th>Default behavior</th><th>What a failure does</th></tr></thead>
+            <tbody>
+              <tr><td>Connectivity startup</td><td>Every 1 second; 1 second timeout; up to 300 failures</td><td>Holds back the real device containers while initial wiring converges.</td></tr>
+              <tr><td>Connectivity readiness</td><td>Every 1 second; checks the exact current revision</td><td>Makes <code>ConnectivityReady</code> false while a Link is missing or stale—or while an interposition invariant fails: the sidecar records named conditions such as <code>CNIUnderlayPreserved</code> and <code>ManagementTranslationReady</code>, so a probe failure names the exact broken invariant.</td></tr>
+              <tr><td>Application startup</td><td>Starts with a 10 second delay and allows about 15 minutes by default; <code>startupSeconds</code> can change the allowance</td><td>Protects slow NOS boot. Readiness takes over as soon as startup succeeds.</td></tr>
+              <tr><td>Application readiness</td><td>If the image supplies timing, c9s keeps it; otherwise every 10 seconds, 10 second timeout, 3 failures</td><td>Marks the container not ready. It does not use a generic liveness probe to kill the NOS.</td></tr>
+              <tr><td>Optional TCP / SSH</td><td>Targets the allocated management address—every direct Node has one now</td><td>Joins the same application probe. An SSH password is mounted from a Secret file and never placed in the plan or command line.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Observation</th><th>Where to read it</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td>Overall answer</td><td><code>Node.status.readiness</code></td><td><code>ready</code>, <code>notready</code>, or <code>unknown</code>.</td></tr>
+              <tr><td>Which build?</td><td><code>Node.status.planDigest</code> and <code>PlanApplied</code></td><td>Shows the exact accepted plan behind this status.</td></tr>
+              <tr><td>Did setup finish?</td><td><code>Prepared</code> and <code>ConnectivityReady</code></td><td>Tells you whether files are staged and the requested wiring revision is in place.</td></tr>
+              <tr><td>Which device part is failing?</td><td><code>status.directContainers[]</code></td><td>Shows each planned component’s Kubernetes name, state, ready flag, restart count, and image ID.</td></tr>
+              <tr><td>What is r1’s management identity?</td><td><code>Node.status.directManagement</code></td><td>Shows the interposed interface name and the allocated IPv4/IPv6 addresses and gateways—what you would SSH to from inside the lab.</td></tr>
+              <tr><td>Was the cable accepted?</td><td><code>Link.status.conditions[Accepted]</code></td><td>Confirms both Nodes exist, interfaces do not conflict, endpoint UIDs match, and a VNI is present when needed.</td></tr>
+              <tr><td>What will this cable edit do?</td><td><code>Node.status.conditions[LinkLifecycleAction]</code></td><td>Reports Live, Restart, or Recreate while the change is being applied.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="tabs" data-tabs>
+          <div class="tab-list" role="tablist" aria-label="Operational commands">
+            <button class="tab-button" type="button" role="tab" aria-selected="true" data-tab="inspect">Inspect</button>
+            <button class="tab-button" type="button" role="tab" aria-selected="false" data-tab="logs">Logs &amp; exec</button>
+            <button class="tab-button" type="button" role="tab" aria-selected="false" data-tab="debug">Connectivity debug</button>
+          </div>
+          <div class="tab-panel active" role="tabpanel" data-panel="inspect">
+            <div class="code-block"><div class="code-head"><span>shell · inspect objects</span><button class="copy-button" type="button">copy</button></div><pre><code>kubectl get nodes.c9s.run,links.c9s.run -n LAB
+kubectl get node.c9s.run r1 -n LAB -o yaml
+kubectl get link.c9s.run r1-r2 -n LAB -o yaml
+kubectl get pods,svc -n LAB -o wide
+kubectl events -n LAB --for node.c9s.run/r1</code></pre></div>
+          </div>
+          <div class="tab-panel" role="tabpanel" data-panel="logs">
+            <div class="code-block"><div class="code-head"><span>shell · target direct containers</span><button class="copy-button" type="button">copy</button></div><pre><code># Default annotation selects the logical primary application container
+kubectl logs -n LAB deploy/r1
+kubectl exec -n LAB deploy/r1 -- &lt;device-command&gt;
+
+# Helpers and multi-component devices are explicit
+kubectl logs -n LAB deploy/r1 -c device-connectivity
+kubectl get pod -n LAB -l c9s.run/direct-workload=r1 \
+  -o jsonpath='{.items[0].spec.containers[*].name}'</code></pre></div>
+          </div>
+          <div class="tab-panel" role="tabpanel" data-panel="debug">
+            <div class="code-block"><div class="code-head"><span>shell · connectivity sidecar (there is no worker agent)</span><button class="copy-button" type="button">copy</button></div><pre><code># Locate the device Pod
+kubectl get pod -n LAB -l c9s.run/direct-workload=r1 -o wide
+
+# The sidecar log names the exact failed invariant
+kubectl logs -n LAB deploy/r1 -c device-connectivity --tail=200
+
+# All networking is inside the Pod: inspect it there
+kubectl exec -n LAB deploy/r1 -c device-connectivity -- \
+  ip -d link show    # c9s0, eth0/c9sd0, c9sr0/c9sg0, c9sb0, c9sm0, c9ss*/c9sx*
+
+# Mesh peer discovery: one headless Service per namespace
+kubectl get endpointslices -n LAB \
+  -l kubernetes.io/service-name=c9s-management-mesh</code></pre></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-kicker">If no Deployment appears</div>
+            <h3>Look before the renderer</h3>
+            <p>Inspect profile resolution and Node events, then planner/image-discovery worker failures. Direct mode intentionally creates no workload until image metadata, planning, and portability checks succeed.</p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">If ConnectivityReady is false</div>
+            <h3>Stay inside the Pod</h3>
+            <p>Check the Link’s Accepted condition and resolved UIDs, then the <code>device-connectivity</code> log—it records named conditions (<code>CNIUnderlayPreserved</code>, <code>ManagementTranslationReady</code>, per-Link state), so the failure is spelled out. For cross-Pod cables and the mesh, confirm the CNI or a NetworkPolicy is not blocking Pod-to-Pod UDP 14789.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="security" data-nav="Security">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-index">09 · Security boundaries</div>
+          <div>
+            <h2>The powerful parts are small and easy to point at.</h2>
+            <p class="section-intro">Creating interfaces, routing tables, and NAT rules needs root-like Linux rights. c9s keeps those rights in one fixed helper—the connectivity sidecar—and scopes them to the Pod it lives in. The planner and the router container never get them.</p>
+          </div>
+        </div>
+
+        <div class="grid-4">
+          <article class="card"><div class="card-kicker">Planner Pod</div><h3>It can describe, not launch</h3><p>No Kubernetes token, host directory, Docker/CRI socket, or privileged networking. It has a read-only root and private scratch. Network access is denied unless a declared file fetch needs a narrow exception.</p></article>
+          <article class="card"><div class="card-kicker">Router container</div><h3>No Kubernetes identity</h3><p><code>automountServiceAccountToken: false</code>. The NOS does not receive cluster credentials, the worker network namespace, or a container-runtime socket.</p></article>
+          <article class="card"><div class="card-kicker">Connectivity sidecar</div><h3>Power inside this Pod only</h3><p>It is privileged so it can make interfaces, bridges, VTEPs, routing rules, and nftables state—but everything it creates lives in its own Pod’s network namespace and follows the accepted plan. It holds no Kubernetes write credentials and talks to no daemon.</p></article>
+          <article class="card"><div class="card-kicker">The worker</div><h3>Nothing runs there</h3><p>No DaemonSet, no host socket, no host-network c9s process. The only host touch left is a <em>read-only</em> worker network-namespace handle, mounted into the sidecar only when the topology declares host Links, used solely to place one end of a veth pair.</p></article>
+        </div>
+
+        <div class="callout warning">
+          <strong>Branch note:</strong> the nested launcher runtime is gone entirely—there is no mode to select and no fallback. 0.9 ships as one breaking cut: the documented upgrade path is a full uninstall and reinstall, old <code>LauncherProfile</code>/<code>connectivity</code> manifests fail validation with named fields, and workers that ran the previous daemon may need a one-time cleanup of stale daemon-era interfaces (or a reboot).
+        </div>
+      </div>
+    </section>
+
+    <section id="example" data-nav="Example">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="section-index">10 · Concrete example</div>
+          <div>
+            <h2>The small lab we have been following.</h2>
+            <p class="section-intro">These are the actual objects: a shared Pod policy, two Linux Nodes, one cable between them, and one cable from r1 into its worker. A Topology or <code>clabverter --emit-crs</code> can create the same pieces for you.</p>
+          </div>
+        </div>
+
+        <div class="code-block">
+          <div class="code-head"><span>yaml · c9s.run/v1alpha1</span><button class="copy-button" type="button">copy</button></div>
+          <pre><code>apiVersion: c9s.run/v1alpha1
+kind: NodeProfile
+metadata:
+  name: lab-policy
+spec:
+  imagePull:
+    policy: IfNotPresent
+  resources:
+    requests:
+      memory: 1Gi
+  statusProbes:
+    enabled: true
+  # optional: pick the management subnet yourself.
+  # without this block, nodes allocate from containerlab's
+  # default 172.20.20.0/24 with the gateway at .1
+  # mgmt:
+  #   ipv4-subnet: 10.90.0.0/24
+---
+apiVersion: c9s.run/v1alpha1
+kind: Node
+metadata:
+  name: r1
+spec:
+  profileRef:
+    name: lab-policy
+  kind: linux
+  image: ghcr.io/srl-labs/network-multitool:latest
+  exec:
+    - ip address add 192.0.2.1/30 dev eth1
+---
+apiVersion: c9s.run/v1alpha1
+kind: Node
+metadata:
+  name: r2
+spec:
+  profileRef:
+    name: lab-policy
+  kind: linux
+  image: ghcr.io/srl-labs/network-multitool:latest
+  exec:
+    - ip address add 192.0.2.2/30 dev eth1
+---
+apiVersion: c9s.run/v1alpha1
+kind: Link
+metadata:
+  name: r1-r2
+spec:
+  endpointA: {nodeName: r1, interfaceName: eth1}
+  endpointB: {nodeName: r2, interfaceName: eth1}
+  mtu: 1500
+---
+apiVersion: c9s.run/v1alpha1
+kind: Link
+metadata:
+  name: r1-host
+spec:
+  endpointA: {nodeName: r1, interfaceName: eth2}
+  endpointB: {nodeName: host, interfaceName: c9s-r1-host}
+  mtu: 1500</code></pre>
+        </div>
+
+        <div class="grid-3" style="margin-top:18px">
+          <article class="card"><div class="card-kicker">r1-r2</div><h3>The cable ignores placement</h3><p>Wherever the two Pods land, the cable is a per-Pod veth stitched to an in-Pod VXLAN VTEP using the Link’s allocated VNI. r1 and r2 see the same plain Ethernet interfaces either way.</p></article>
+          <article class="card"><div class="card-kicker">r1-host</div><h3>The worker gets one end</h3><p><code>host</code> is a reserved endpoint name. r1’s sidecar creates the <code>eth2 ↔ c9s-r1-host</code> veth pair inside the Pod and moves the named end into the worker namespace; deleting the Pod deletes both ends.</p></article>
+          <article class="card"><div class="card-kicker">What appears alongside</div><h3>Services and the mesh</h3><p>Each Node gets a headless <code>&lt;name&gt;-vx</code> discovery Service and its exposed-port Service targeting the Pod directly. The namespace also gets one <code>c9s-management-mesh</code> Service, and both routers get management addresses on the same shared subnet—so <code>r1</code> can ping <code>r2</code>’s management address out of the box.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="summary" data-nav="Summary">
+      <div class="wrap">
+        <div class="takeaway">
+          <div class="section-index">The whole story in one breath</div>
+          <h2 style="margin-top:14px">Containerlab knows the device. Kubernetes runs it. The sidecar wires it.</h2>
+          <p>You create Nodes and Links. c9s loads the real Containerlab kind, records how that device wants to run, checks the recording, and turns it into a normal Pod. Inside that Pod, a privileged sidecar preserves the CNI interface as <code>c9s0</code>, hands the device a synthetic <code>eth0</code> carrying a controller-allocated management address, bridges every Pod of the namespace into one L2 management mesh, and realizes each cable as a stitched in-Pod VXLAN tunnel between Pod IPs. Nothing runs on the workers. Containerlab’s own post-start, endpoint, health, and save hooks are still used, but every action is checked against the saved plan. UIDs own the cables; digests own the build; the Pod’s lifetime owns the cleanup.</p>
+        </div>
+
+        <h3 style="margin-top:42px">Implementation anchors used for this explainer</h3>
+        <div class="source-list">
+          <a class="source-link" href="./clabernetes/apis/v1alpha1/node.go"><span>apis/v1alpha1/node.go</span><small>Node shape, direct status, conditions</small></a>
+          <a class="source-link" href="./clabernetes/apis/v1alpha1/link.go"><span>apis/v1alpha1/link.go</span><small>Link endpoints, allocation, UIDs, host finalizer</small></a>
+          <a class="source-link" href="./clabernetes/controllers/node/direct.go"><span>controllers/node/direct.go</span><small>End-to-end direct reconciliation pipeline</small></a>
+          <a class="source-link" href="./clabernetes/internal/deviceplan/registry.go"><span>internal/deviceplan/registry.go</span><small>Containerlab live kind registry and RegisterNodes</small></a>
+          <a class="source-link" href="./clabernetes/internal/deviceplan/adapter.go"><span>internal/deviceplan/adapter.go</span><small>Imported Containerlab hooks and recording runtime</small></a>
+          <a class="source-link" href="./clabernetes/internal/deviceplan/mapper.go"><span>internal/deviceplan/mapper.go</span><small>Imported behavior → runtime-neutral plan</small></a>
+          <a class="source-link" href="./clabernetes/internal/deviceplan/readiness.go"><span>internal/deviceplan/readiness.go</span><small>Imported Containerlab IsHealthy probe</small></a>
+          <a class="source-link" href="./clabernetes/internal/directpod/renderer.go"><span>internal/directpod/renderer.go</span><small>Direct Deployment, helpers, containers, volumes</small></a>
+          <a class="source-link" href="./clabernetes/internal/directruntime/connectivity.go"><span>internal/directruntime/connectivity.go</span><small>Sidecar reconcile loop: revisions, fabric, mesh, re-assertion</small></a>
+          <a class="source-link" href="./clabernetes/internal/directruntime/interposition.go"><span>internal/directruntime/interposition.go</span><small>Interface names, policy routing, interposition invariants</small></a>
+          <a class="source-link" href="./clabernetes/internal/directruntime/fabric_linux.go"><span>internal/directruntime/fabric_linux.go</span><small>In-Pod stitched VXLAN cables and host-Link placement</small></a>
+          <a class="source-link" href="./clabernetes/internal/directruntime/nat_linux.go"><span>internal/directruntime/nat_linux.go</span><small>The c9s-interposition nftables translation table</small></a>
+          <a class="source-link" href="./clabernetes/controllers/node/directmanagement.go"><span>controllers/node/directmanagement.go</span><small>Management allocation, defaults, mesh VNI + gateway MAC</small></a>
+          <a class="source-link" href="./clabernetes/openspec/changes/archive/2026-08-21-direct-node-pods/design.md"><span>openspec/…/2026-08-21-direct-node-pods/design.md</span><small>Change 1: the direct runtime itself</small></a>
+          <a class="source-link" href="./clabernetes/openspec/changes/archive/2026-08-21-sidecar-mgmt-interposition/design.md"><span>openspec/…/2026-08-21-sidecar-mgmt-interposition/design.md</span><small>Change 2: daemonless sidecar ownership + interposition</small></a>
+          <a class="source-link" href="./clabernetes/openspec/changes/archive/2026-08-21-management-l2-mesh/design.md"><span>openspec/…/2026-08-21-management-l2-mesh/design.md</span><small>Change 3: the shared L2 management domain</small></a>
+          <a class="source-link" href="./clabernetes/openspec/changes/archive/2026-08-21-retire-launcher-era-surface/design.md"><span>openspec/…/2026-08-21-retire-launcher-era-surface/design.md</span><small>Change 4: NodeProfile rename and surface cleanup</small></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-row">
+      <span>Generated from local branch <code>direct-c9s</code> at <code>8d7d4be</code> · snapshot 2026-08-22 · daemonless sidecar runtime</span>
+      <span>Single HTML file · Mermaid is loaded from jsDelivr when diagrams render</span>
+    </div>
+  </footer>
+
+  <script type="module">
+    const root = document.documentElement;
+    const savedTheme = localStorage.getItem('direct-c9s-theme');
+    if (savedTheme === 'light' || savedTheme === 'dark') {
+      root.dataset.theme = savedTheme;
+    } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+      root.dataset.theme = 'light';
+    }
+
+    const mermaidNodes = [...document.querySelectorAll('.mermaid')];
+    mermaidNodes.forEach((node) => { node.dataset.source = node.textContent.trim(); });
+
+    let mermaid;
+    function mermaidConfig() {
+      const dark = root.dataset.theme === 'dark';
+      return {
+        startOnLoad: false,
+        securityLevel: 'strict',
+        theme: 'base',
+        flowchart: { htmlLabels: true, curve: 'basis', useMaxWidth: true },
+        sequence: { useMaxWidth: true, wrap: true, diagramMarginX: 20, diagramMarginY: 20 },
+        themeVariables: dark ? {
+          background: '#0f1f2d', primaryColor: '#12364a', primaryTextColor: '#edf7f8',
+          primaryBorderColor: '#69a9ff', lineColor: '#83a5b3', secondaryColor: '#173a34',
+          tertiaryColor: '#2d2449', noteBkgColor: '#2f2b20', noteTextColor: '#edf7f8',
+          noteBorderColor: '#ffc56b', actorBkg: '#12364a', actorBorder: '#69a9ff',
+          actorTextColor: '#edf7f8', signalColor: '#9eb3bf', signalTextColor: '#edf7f8',
+          labelBoxBkgColor: '#0f1f2d', labelBoxBorderColor: '#61e6cf', labelTextColor: '#edf7f8',
+          clusterBkg: '#0b1723', clusterBorder: '#365767', fontFamily: 'Inter, system-ui, sans-serif'
+        } : {
+          background: '#ffffff', primaryColor: '#e7f2f7', primaryTextColor: '#102c34',
+          primaryBorderColor: '#1769c7', lineColor: '#526e78', secondaryColor: '#e4f5ef',
+          tertiaryColor: '#eee8fa', noteBkgColor: '#fff4d9', noteTextColor: '#102c34',
+          noteBorderColor: '#a85f00', actorBkg: '#e7f2f7', actorBorder: '#1769c7',
+          actorTextColor: '#102c34', signalColor: '#526e78', signalTextColor: '#102c34',
+          labelBoxBkgColor: '#ffffff', labelBoxBorderColor: '#007e70', labelTextColor: '#102c34',
+          clusterBkg: '#f4faf9', clusterBorder: '#9eb5bb', fontFamily: 'Inter, system-ui, sans-serif'
+        }
+      };
+    }
+
+    async function renderMermaid() {
+      if (!mermaid) return;
+      mermaid.initialize(mermaidConfig());
+      for (const node of mermaidNodes) {
+        node.removeAttribute('data-processed');
+        node.innerHTML = node.dataset.source;
+      }
+      try {
+        await mermaid.run({ nodes: mermaidNodes, suppressErrors: false });
+        if (location.hash) {
+          setTimeout(() => {
+            const target = document.getElementById(location.hash.slice(1));
+            if (target) {
+              window.scrollTo({ top: Math.max(0, target.offsetTop - 78), behavior: 'instant' });
+            }
+          }, 50);
+        }
+      } catch (error) {
+        console.error('Mermaid rendering failed:', error);
+      }
+    }
+
+    try {
+      ({ default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'));
+      await renderMermaid();
+    } catch (error) {
+      console.warn('Mermaid could not be loaded; diagram source remains visible.', error);
+    }
+
+    document.getElementById('themeButton').addEventListener('click', async () => {
+      root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('direct-c9s-theme', root.dataset.theme);
+      await renderMermaid();
+    });
+
+    document.querySelectorAll('[data-tabs]').forEach((tabs) => {
+      const buttons = [...tabs.querySelectorAll('[data-tab]')];
+      const panels = [...tabs.querySelectorAll('[data-panel]')];
+      buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+          buttons.forEach((item) => item.setAttribute('aria-selected', String(item === button)));
+          panels.forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === button.dataset.tab));
+        });
+      });
+    });
+
+    document.querySelectorAll('.copy-button').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const code = button.closest('.code-block').querySelector('code').textContent;
+        try {
+          await navigator.clipboard.writeText(code);
+          const previous = button.textContent;
+          button.textContent = 'copied';
+          setTimeout(() => { button.textContent = previous; }, 1200);
+        } catch {
+          button.textContent = 'select text';
+        }
+      });
+    });
+
+    const sections = [...document.querySelectorAll('section[id]')];
+    const navLinks = [...document.querySelectorAll('.topnav a')];
+    const updateScrollState = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      document.getElementById('progress').style.width = `${max > 0 ? (window.scrollY / max) * 100 : 0}%`;
+      let current = sections[0]?.id;
+      for (const section of sections) {
+        if (section.getBoundingClientRect().top <= 115) current = section.id;
+      }
+      navLinks.forEach((link) => link.classList.toggle('active', link.hash === `#${current}`));
+    };
+    addEventListener('scroll', updateScrollState, { passive: true });
+    addEventListener('resize', updateScrollState, { passive: true });
+    updateScrollState();
+  </script>
+</body>
+</html>
