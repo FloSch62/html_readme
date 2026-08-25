@@ -1456,17 +1456,17 @@ linkID(4) | operUp(1)      # repeated per link
           <div class="diagram-title"><b data-lang="en">A jumbo frame crossing the wire</b><b data-lang="de">Ein Jumbo-Frame quert die Leitung</b><span data-lang="en">capture → fragment → UDP → reassemble → inject</span><span data-lang="de">abfangen → fragmentieren → UDP → zusammensetzen → injizieren</span></div>
           <pre class="mermaid">
 sequenceDiagram
-  participant D1 as r1 device (e1-1, MTU 9500)
+  participant D1 as r1 device e1-1 · MTU 9500
   participant S1 as r1 sidecar wire pump
-  participant N as Pod network (MTU 1480)
+  participant N as Pod network · MTU 1480
   participant S2 as r2 sidecar wire pump
-  participant D2 as r2 device (e1-1, MTU 9500)
+  participant D2 as r2 device e1-1 · MTU 9500
 
-  D1->>S1: 9014-byte Ethernet frame (via veth)
-  Note over S1: packet socket reads it&lt;br/&gt;split into 7 × ≤1430-byte payloads
-  S1->>N: 7 UDP datagrams to r2's Pod IP :14790 (one sendmmsg)
-  N->>S2: 7 datagrams (any order; recvmmsg batch)
-  Note over S2: reassemble by (generation,&lt;br/&gt;linkID, frameID)&lt;br/&gt;gap after 100 ms → drop whole frame
+  D1->>S1: 9014-byte Ethernet frame via veth
+  Note over S1: packet socket reads it&lt;br/&gt;split into 7 payloads of ≤ 1430 bytes
+  S1->>N: 7 UDP datagrams to r2 Pod IP port 14790 · one sendmmsg
+  N->>S2: 7 datagrams · any order · recvmmsg batch
+  Note over S2: reassemble by generation + linkID + frameID&lt;br/&gt;gap after 100 ms → drop whole frame
   S2->>D2: original 9014-byte frame injected out of the wire leg
   Note over S1,S2: heartbeats + linkState ride&lt;br/&gt;the same socket every second
           </pre>
