@@ -84,7 +84,7 @@
 
     a { color: var(--teal); text-decoration-thickness: 1px; text-underline-offset: 3px; }
     a:hover { color: var(--blue); }
-    button, a { -webkit-tap-highlight-color: transparent; }
+    button, a, select { -webkit-tap-highlight-color: transparent; }
     :focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 6px; }
 
     .progress {
@@ -169,6 +169,22 @@
       cursor: pointer;
       font-size: 1rem;
     }
+
+    .page-select {
+      width: 170px;
+      height: 38px;
+      flex: 0 0 auto;
+      padding: 0 32px 0 11px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--surface);
+      color: var(--text);
+      font: 650 .79rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+      cursor: pointer;
+    }
+
+    .page-select:hover { border-color: var(--border-strong); }
+    .page-select option { background: var(--surface-solid); color: var(--text); }
 
     main { overflow: hidden; }
     .wrap { width: min(var(--max), calc(100% - 32px)); margin-inline: auto; }
@@ -439,7 +455,9 @@
 
     @media (max-width: 680px) {
       .wrap, .topbar-inner { width: min(100% - 22px, var(--max)); }
-      .topbar-inner { min-height: 60px; }
+      .topbar-inner { min-height: 60px; gap: 8px; }
+      .brand-label { display: none; }
+      .page-select { width: min(145px, calc(100vw - 159px)); }
       .hero { padding: 58px 0 38px; min-height: auto; }
       h1 { font-size: clamp(2.9rem, 17vw, 4.6rem); }
       section { padding: 58px 0; }
@@ -457,7 +475,7 @@
     @media print {
       :root, html[data-theme="light"] { --bg: #fff; --surface: #fff; --surface-solid: #fff; --surface-2: #f5f7f7; --text: #102c34; --muted: #405a62; --faint: #63777d; --border: #ccd8da; --code: #f5f7f7; }
       body { background: #fff; }
-      body::before, .topbar, .progress, .theme-button, .copy-button, .diagram-tools { display: none !important; }
+      body::before, .topbar, .progress, .theme-button, .page-select, .copy-button, .diagram-tools { display: none !important; }
       .hero { min-height: auto; padding-top: 28px; }
       section { break-inside: auto; }
       .card, .diagram, .table-wrap, .code-block, .callout { break-inside: avoid; box-shadow: none; }
@@ -473,7 +491,7 @@
   <div class="progress" id="progress" aria-hidden="true"></div>
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="#top"><span class="brand-mark">c9s</span><span>direct-c9s explained</span></a>
+      <a class="brand" href="#top"><span class="brand-mark">c9s</span><span class="brand-label">direct-c9s explained</span></a>
       <nav class="topnav" aria-label="Page sections">
         <a href="#model"><span data-lang="en">Big picture</span><span data-lang="de">Überblick</span></a>
         <a href="#api"><span data-lang="en">Pieces</span><span data-lang="de">Bausteine</span></a>
@@ -486,6 +504,10 @@
         <a href="#removed"><span data-lang="en">Removed</span><span data-lang="de">Entfernt</span></a>
         <a href="#operations"><span data-lang="en">Probes</span><span data-lang="de">Betrieb</span></a>
       </nav>
+      <select class="page-select" id="pageSelect" aria-label="Choose explainer">
+        <option value="index.html" selected>Direct architecture</option>
+        <option value="persistence-explained.html">Persistence</option>
+      </select>
       <button class="theme-button" id="langButton" type="button" aria-label="Switch language" title="Sprache wechseln / switch language">DE</button>
       <button class="theme-button" id="themeButton" type="button" aria-label="Switch color theme" title="Switch color theme">◐</button>
     </div>
@@ -2431,6 +2453,10 @@ spec:
       localStorage.setItem('direct-c9s-lang', next);
       applyLang(next);
       updateScrollState();
+    });
+
+    document.getElementById('pageSelect').addEventListener('change', (event) => {
+      window.location.assign(event.currentTarget.value);
     });
 
     const mermaidNodes = [...document.querySelectorAll('.mermaid')];
