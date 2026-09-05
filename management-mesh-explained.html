@@ -478,18 +478,57 @@
       </figcaption>
     </figure>
     <p data-lang="en">
-      Per peer, the sidecar holds exactly two entries: a permanent <strong>neighbor entry</strong> (the peer's
+      Per IPv4 peer, <code>clabwire</code> installs exactly two entries in the Pod's kernel: a permanent <strong>neighbor entry</strong> (the peer's
       management address maps to the peer's derived MAC) and a <strong>forwarding entry</strong> (that MAC lives
       behind the peer's Pod address). Sixty-three peers, sixty-three entries each. Two thousand peers, two thousand.
       That is the whole scaling story: the state is linear and the work per packet is constant.
     </p>
     <p data-lang="de">
-      Pro Peer hält der Sidecar genau zwei Einträge: einen permanenten <strong>Nachbar-Eintrag</strong>
+      Pro IPv4-Peer installiert <code>clabwire</code> genau zwei Einträge im Pod-Kernel: einen permanenten <strong>Nachbar-Eintrag</strong>
       (Management-Adresse des Peers auf dessen abgeleitete MAC) und einen <strong>Forwarding-Eintrag</strong>
       (diese MAC wohnt hinter der Pod-Adresse des Peers). Dreiundsechzig Peers, jeweils dreiundsechzig Einträge.
       Zweitausend Peers, zweitausend. Das ist die ganze Skalierungsgeschichte: der Zustand ist linear und die
       Arbeit pro Paket konstant.
     </p>
+    <div class="card" id="peer-mac">
+      <h3><span data-lang="en">Where does a peer's MAC come from?</span><span data-lang="de">Woher kommt die MAC eines Peers?</span></h3>
+      <p data-lang="en">
+        <code>clabwire</code> calculates it from the peer's management IPv4 address: the fixed prefix
+        <code>06:c9</code> followed by the four IPv4 bytes in hexadecimal. The directory supplies the management
+        address and current Pod address; it does not need a MAC field. Every Pod uses the same calculation.
+      </p>
+      <p data-lang="de">
+        <code>clabwire</code> berechnet sie aus der Management-IPv4-Adresse des Peers: das feste Präfix
+        <code>06:c9</code>, gefolgt von den vier IPv4-Bytes in Hexadezimaldarstellung. Das Verzeichnis liefert die
+        Management-Adresse und die aktuelle Pod-Adresse; ein MAC-Feld braucht es nicht. Jeder Pod rechnet gleich.
+      </p>
+      <pre class="term"><span class="c"># gnmic's management IPv4 → bytes in hex → mesh tunnel MAC</span>
+172.20.20.13 → ac:14:14:0d → <span class="g">06:c9:ac:14:14:0d</span></pre>
+      <p data-lang="en">
+        On r1, <code>clabwire</code> uses netlink to install <code>172.20.20.13 → 06:c9:ac:14:14:0d</code> as a
+        permanent neighbor on <code>c9sm0</code>, and <code>06:c9:ac:14:14:0d → 172.16.217.182</code> in that
+        interface's VXLAN forwarding database (FDB). Both tables live in the <strong>Linux kernel inside r1's Pod
+        network namespace</strong>; the commands below inspect them. On gnmic, <code>clabwire</code> assigns the
+        same calculated MAC to gnmic's own <code>c9sm0</code>, so the incoming frame is addressed to that interface.
+      </p>
+      <p data-lang="de">
+        Auf r1 installiert <code>clabwire</code> per netlink <code>172.20.20.13 → 06:c9:ac:14:14:0d</code> als
+        permanenten Nachbarn auf <code>c9sm0</code> und <code>06:c9:ac:14:14:0d → 172.16.217.182</code> in dessen
+        VXLAN-Forwarding-Datenbank (FDB). Beide Tabellen liegen im <strong>Linux-Kernel im Netzwerk-Namespace des
+        Pods r1</strong>; die Befehle unten zeigen sie an. Auf gnmic weist <code>clabwire</code> dem eigenen
+        <code>c9sm0</code> dieselbe berechnete MAC zu, sodass der ankommende Frame an dieses Interface adressiert ist.
+      </p>
+      <p data-lang="en">
+        This is the <strong>peer's tunnel MAC</strong>, not the MAC of its node management port. The node's own ARP
+        exchange gets the local gateway MAC through proxy ARP. <code>clabwire</code> programs the tables;
+        <strong>the kernel performs the route, neighbor, and FDB lookups for each packet</strong>.
+      </p>
+      <p data-lang="de">
+        Das ist die <strong>Tunnel-MAC des Peers</strong>, nicht die MAC seines Node-Management-Ports. Die eigene
+        ARP-Anfrage des Nodes erhält per Proxy-ARP die lokale Gateway-MAC. <code>clabwire</code> programmiert die
+        Tabellen; <strong>der Kernel führt pro Paket die Routen-, Nachbar- und FDB-Lookups aus</strong>.
+      </p>
+    </div>
     <p data-lang="en">
       The route output below is filtered to <code>c9sm0</code>: <strong>one route for the whole management subnet,
       no route per remote peer</strong>. Plain <code>ip route</code> shows the main table; the mesh uses table
@@ -535,8 +574,8 @@ $ bridge fdb show dev c9sm0 | head -2
     <p data-lang="en">
       r1 wants to send a gNMI reply to <code>172.20.20.13</code>. Its routing table says the address is on its own
       subnet, so it ARPs for it. The router leg has proxy ARP enabled with zero delay: it answers with the gateway
-      MAC for any address that routes out through the tunnel. r1 sends the frame to the gateway MAC, the sidecar
-      routes it, table <code>20000</code> points at <code>c9sm0</code>, the neighbor entry gives the peer's derived
+      MAC for any address that routes out through the tunnel. r1 sends the frame to the gateway MAC, and the kernel
+      routes it using the tables programmed by <code>clabwire</code>: table <code>20000</code> points at <code>c9sm0</code>, the neighbor entry gives the peer's derived
       MAC, the forwarding entry gives the peer's Pod address, and the frame leaves as one VXLAN packet on UDP 14789
       over the ordinary Pod network. On the far side the frame arrives addressed to that Pod's own tunnel MAC, so
       the kernel treats it as a packet for itself and routes it through the router leg to the node.
@@ -545,7 +584,8 @@ $ bridge fdb show dev c9sm0 | head -2
       r1 will eine gNMI-Antwort an <code>172.20.20.13</code> schicken. Seine Routing-Tabelle sagt, die Adresse liegt
       im eigenen Subnetz, also fragt es per ARP. Das Router-Bein hat Proxy-ARP ohne Verzögerung aktiviert: es
       antwortet mit der Gateway-MAC für jede Adresse, die durch den Tunnel hinausroutet. r1 schickt den Frame an die
-      Gateway-MAC, der Sidecar routet ihn, Tabelle <code>20000</code> zeigt auf <code>c9sm0</code>, der
+      Gateway-MAC, und der Kernel routet ihn anhand der von <code>clabwire</code> programmierten Tabellen:
+      Tabelle <code>20000</code> zeigt auf <code>c9sm0</code>, der
       Nachbar-Eintrag liefert die abgeleitete MAC des Peers, der Forwarding-Eintrag dessen Pod-Adresse, und der Frame
       verlässt den Pod als ein VXLAN-Paket auf UDP 14789 über das normale Pod-Netz. Auf der anderen Seite kommt der
       Frame adressiert an die eigene Tunnel-MAC dieses Pods an, der Kernel behandelt ihn als Paket für sich selbst
@@ -554,7 +594,7 @@ $ bridge fdb show dev c9sm0 | head -2
     <figure class="diagram">
       <svg class="mesh-diagram" viewBox="0 0 960 740" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="packet-title packet-desc">
         <title id="packet-title">One packet from node r1 to node gnmic</title>
-        <desc id="packet-desc">Read from top to bottom. First, clabwire in Pod r1 answers r1's ARP for gnmic with the gateway MAC. Second, r1 sends its frame; the route, neighbor entry, and forwarding entry select the tunnel and peer Pod. Third, a VXLAN packet crosses the Pod network to 172.16.217.182, preserving the inner management source and destination. Fourth, the remote kernel decapsulates the frame and routes it through c9sr0 to gnmic. The reply follows the reverse path.</desc>
+        <desc id="packet-desc">Read from top to bottom. First, the kernel proxy ARP configured by clabwire in Pod r1 answers r1's ARP for gnmic with the gateway MAC. Second, r1 sends its frame; the kernel uses the route, neighbor entry, and forwarding entry programmed by clabwire to select the tunnel and peer Pod. The peer's tunnel MAC is calculated from its management IPv4 address. Third, a VXLAN packet crosses the Pod network to 172.16.217.182, preserving the inner management source and destination. Fourth, the remote kernel decapsulates the frame and routes it through c9sr0 to gnmic. The reply follows the reverse path.</desc>
         <defs>
           <marker id="packet-blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--blue)" /></marker>
           <marker id="packet-teal-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--teal)" /></marker>
@@ -585,7 +625,7 @@ $ bridge fdb show dev c9sm0 | head -2
         <text class="label" x="273" y="250" text-anchor="middle">Frame to the gateway MAC</text>
         <path class="flow query" d="M 175 270 H 370" marker-end="url(#packet-blue-arrow)" />
         <rect class="container sidecar" x="272" y="294" width="332" height="90" rx="8" />
-        <text class="heading" x="288" y="318">Three lookups, one destination</text>
+        <text class="heading" x="288" y="318">Kernel lookups · set up by clabwire</text>
         <text class="label" x="288" y="340">Route: 172.20.20.0/24 → c9sm0</text>
         <text class="label" x="288" y="358">Neighbor: .13 → MAC 06:c9:ac:14:14:0d</text>
         <text class="label" x="288" y="376">FDB: that MAC → Pod 172.16.217.182</text>
@@ -735,18 +775,81 @@ $ bridge fdb show dev c9sm0 | head -2
       </figcaption>
     </figure>
     <p data-lang="en">
-      The same directory feeds <code>/etc/hosts</code> in every Pod, so <code>ping gnmic</code> works inside a node
-      without any DNS server involved. The price of this design is the kubelet's sync period: a node added to a running
-      lab is reachable by name about half a minute after it is ready, and a Pod that was rescheduled reaches its peers
-      again within about a minute, longer while a worker is busy starting many Pods at once.
+      <code>clabwire</code> also uses the directory to update <code>/etc/hosts</code> in every Pod, so
+      <code>ping gnmic</code> works inside a node without a DNS server. Both name resolution and mesh forwarding
+      depend on the same update reaching the mounted files. That is where the kubelet's refresh timing matters.
     </p>
     <p data-lang="de">
-      Dasselbe Verzeichnis füttert <code>/etc/hosts</code> in jedem Pod, also funktioniert <code>ping gnmic</code>
-      im Node ohne jeden DNS-Server. Der Preis dieses Designs ist die Sync-Periode des kubelet: ein Node, der zu einem
-      laufenden Lab hinzukommt, ist etwa eine halbe Minute nach seiner Readiness per Name erreichbar, und ein Pod, der
-      umgeplant wurde, erreicht seine Peers innerhalb von etwa einer Minute wieder, länger, wenn ein Worker gerade viele
-      Pods auf einmal startet.
+      <code>clabwire</code> aktualisiert aus dem Verzeichnis auch <code>/etc/hosts</code> in jedem Pod, sodass
+      <code>ping gnmic</code> im Node ohne DNS-Server funktioniert. Namensauflösung und Mesh-Forwarding hängen beide
+      davon ab, dass die Aktualisierung in den gemounteten Dateien ankommt. Hier spielt der Refresh-Zeitpunkt des
+      kubelet eine Rolle.
     </p>
+    <div class="card" id="directory-sync">
+      <h3><span data-lang="en">What does “kubelet sync” actually refresh?</span><span data-lang="de">Was aktualisiert der „kubelet-Sync“ genau?</span></h3>
+      <p data-lang="en">It refreshes the <strong>files projected from the ConfigMaps into each Pod</strong>. Learning that an API object changed and updating those files are separate steps:</p>
+      <p data-lang="de">Er aktualisiert die <strong>aus den ConfigMaps in jeden Pod projizierten Dateien</strong>. Von einer Änderung am API-Objekt zu erfahren und die Dateien zu aktualisieren sind getrennte Schritte:</p>
+      <ol data-lang="en">
+        <li>The controller writes the updated peer identity into a ConfigMap shard.</li>
+        <li>The worker's kubelet learns the new contents, normally through an API watch into its local cache.</li>
+        <li>During periodic synchronization, the kubelet refreshes the Pod's projected volume from that cache.</li>
+        <li><code>clabwire</code> notices the changed files on its default one-second tick and updates neighbors, FDB entries, and <code>/etc/hosts</code>.</li>
+      </ol>
+      <ol data-lang="de">
+        <li>Der Controller schreibt die aktualisierte Peer-Identität in einen ConfigMap-Shard.</li>
+        <li>Das kubelet des Workers erfährt den neuen Inhalt, normalerweise per API-Watch in seinen lokalen Cache.</li>
+        <li>Beim periodischen Abgleich aktualisiert das kubelet das projizierte Volume des Pods aus diesem Cache.</li>
+        <li><code>clabwire</code> bemerkt die geänderten Dateien bei seinem standardmäßig sekündlichen Tick und aktualisiert Nachbarn, FDB-Einträge und <code>/etc/hosts</code>.</li>
+      </ol>
+      <p data-lang="en">
+        The default kubelet <code>syncFrequency</code> is <strong>one minute</strong>. Kubernetes describes the
+        ConfigMap-to-file delay as the sync period plus cache-propagation delay. That is <strong>not a guarantee
+        of mesh convergence within 60 seconds</strong>: controller processing, volume refresh scheduling under load,
+        and the subsequent local update also contribute. Once the files change, <code>clabwire</code> does not
+        deliberately wait another minute.
+        See the <a href="https://kubernetes.io/docs/concepts/configuration/configmap/#mounted-configmaps-are-updated-automatically">ConfigMap update documentation</a>
+        and <a href="https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/">kubelet configuration reference</a>.
+      </p>
+      <p data-lang="de">
+        Die kubelet-Einstellung <code>syncFrequency</code> beträgt standardmäßig <strong>eine Minute</strong>.
+        Kubernetes beschreibt die Verzögerung von der ConfigMap bis zur Datei als Sync-Periode plus
+        Cache-Propagationszeit. Das ist <strong>keine Garantie für Mesh-Konvergenz innerhalb von 60 Sekunden</strong>:
+        Controller-Verarbeitung, die Einplanung des Volume-Refreshs unter Last und die anschließende lokale
+        Aktualisierung tragen ebenfalls bei. Sobald die Dateien geändert sind, wartet <code>clabwire</code> nicht
+        absichtlich eine weitere Minute.
+        Siehe die <a href="https://kubernetes.io/docs/concepts/configuration/configmap/#mounted-configmaps-are-updated-automatically">Dokumentation zu ConfigMap-Updates</a>
+        und die <a href="https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/">kubelet-Konfigurationsreferenz</a>.
+      </p>
+      <p data-lang="en">In validation, an added node became reachable by name roughly half a minute after readiness; a rescheduled Pod recovered peer connectivity in roughly a minute. These are observations from that cluster, not fixed delays or upper bounds. Busy workers sometimes took several minutes.</p>
+      <p data-lang="de">In der Validierung war ein hinzugefügter Node ungefähr eine halbe Minute nach Readiness per Name erreichbar; ein umgeplanter Pod erreichte seine Peers nach ungefähr einer Minute wieder. Das sind Beobachtungen aus diesem Cluster, keine festen Wartezeiten oder Obergrenzen. Unter Last brauchten Worker teils mehrere Minuten.</p>
+    </div>
+    <div class="card" id="directory-watches">
+      <h3><span data-lang="en">Why not watch the API from every Pod?</span><span data-lang="de">Warum nicht die API aus jedem Pod beobachten?</span></h3>
+      <p data-lang="en">
+        The alternative considered was an <strong>EndpointSlice informer inside each <code>clabwire</code>
+        container</strong>, not a separate informer Pod. It could deliver changes sooner by avoiding the projected-file
+        refresh step. But 2,000 lab Pods would mean roughly 2,000 independent API watches, each receiving relevant peer
+        updates and maintaining its own client cache. The selected design lets each worker's kubelet share ConfigMap
+        access across its Pods and distribute the contents through volumes.
+      </p>
+      <p data-lang="de">
+        Die betrachtete Alternative war ein <strong>EndpointSlice-Informer in jedem <code>clabwire</code>-Container</strong>,
+        kein separater Informer-Pod. Er könnte Änderungen früher liefern, weil der Refresh der projizierten Dateien
+        entfiele. Bei 2.000 Lab-Pods wären das aber ungefähr 2.000 unabhängige API-Watches, die jeweils relevante
+        Peer-Updates empfangen und einen eigenen Client-Cache halten. Im gewählten Design teilt das kubelet jedes Workers
+        den ConfigMap-Zugriff zwischen seinen Pods und verteilt die Inhalte über Volumes.
+      </p>
+      <p data-lang="en">
+        The documented reason for rejecting that option was <strong>API-server fan-out per Pod rather than shared
+        access per worker</strong>. This is a tradeoff between faster updates and API load; the design notes do not
+        report an informer benchmark that failed.
+      </p>
+      <p data-lang="de">
+        Der dokumentierte Ablehnungsgrund war die <strong>API-Server-Verteilung pro Pod statt eines gemeinsamen
+        Zugriffs pro Worker</strong>. Das ist eine Abwägung zwischen schnelleren Updates und API-Last; die Design-Notizen
+        berichten nicht von einem gescheiterten Informer-Benchmark.
+      </p>
+    </div>
     <pre class="term"><span class="c"># one shard, straight from the API</span>
 $ kubectl -n st get cm c9s-peer-directory-3 -o jsonpath='{.data.peers\.json}' | python3 -m json.tool | head -12
 {
@@ -889,9 +992,9 @@ $ curl -s -o /dev/null -w '%{http_code}\n' http://172.16.79.201:3000/api/health 
         <p data-lang="de">Jeder Node ist ein Pod, und eine Deploy-Welle fügt kurzzeitig zwei kurzlebige Helfer-Pods pro Node hinzu (Planung, Image-Pull). Das kubelet erlaubt standardmäßig 110 Pods pro Node. Erschöpft eine Welle sie, stehen Node-Pods mit <em>Too many pods</em> in <code>Pending</code>, bis die Helfer eingesammelt sind und der Scheduler es erneut versucht. Für große Labs <code>maxPods</code> auf den Workern erhöhen; 250 ist ein üblicher Wert.</p>
       </div>
       <div class="card">
-        <h3><span data-lang="en">Convergence is the kubelet's</span><span data-lang="de">Konvergenz gehört dem kubelet</span></h3>
-        <p data-lang="en">Right after the 64-node wave, two sampled Pods still lacked 8 and 13 peers for a few minutes and then had all 63: the kubelet was busy starting sixty Pods and refreshed their projected volumes late. The bound is the kubelet sync period, about a minute at rest, several under load. An informer per Pod would be faster and cost one API watch per Pod; that trade was declined on purpose.</p>
-        <p data-lang="de">Direkt nach der 64er-Welle fehlten zwei gezogenen Pods noch einige Minuten 8 bzw. 13 Peers, danach hatten sie alle 63: das kubelet war mit dem Start von sechzig Pods beschäftigt und aktualisierte deren projizierte Volumes spät. Die Schranke ist die kubelet-Sync-Periode, im Ruhezustand etwa eine Minute, unter Last mehrere. Ein Informer pro Pod wäre schneller und kostete einen API-Watch pro Pod; dieser Tausch wurde bewusst abgelehnt.</p>
+        <h3><span data-lang="en">Projected-file refresh can lag under load</span><span data-lang="de">Datei-Refresh kann unter Last dauern</span></h3>
+        <p data-lang="en">Right after the 64-node wave, two sampled Pods still lacked 8 and 13 peers for a few minutes and then had all 63. Validation notes attribute this to delayed kubelet volume refreshes during the startup wave. These are observed convergence times, not a hard kubelet deadline. See <a href="#directory-sync">what kubelet sync refreshes</a> and <a href="#directory-watches">why per-Pod informers were not selected</a>.</p>
+        <p data-lang="de">Direkt nach der 64er-Welle fehlten zwei Stichproben-Pods noch einige Minuten 8 bzw. 13 Peers; danach hatten sie alle 63. Die Validierungsnotizen führen das auf verzögerte kubelet-Volume-Refreshs während der Startwelle zurück. Das sind beobachtete Konvergenzzeiten, keine harte kubelet-Frist. Siehe <a href="#directory-sync">was der kubelet-Sync aktualisiert</a> und <a href="#directory-watches">warum keine Informer pro Pod gewählt wurden</a>.</p>
       </div>
     </div>
   </section>
