@@ -507,6 +507,7 @@
       <select class="page-select" id="pageSelect" aria-label="Choose explainer">
         <option value="index.html" selected>Direct architecture</option>
         <option value="persistence-explained.html">Persistence</option>
+        <option value="management-mesh-explained.html">Management mesh</option>
       </select>
       <button class="theme-button" id="langButton" type="button" aria-label="Switch language" title="Sprache wechseln / switch language">DE</button>
       <button class="theme-button" id="themeButton" type="button" aria-label="Switch color theme" title="Switch color theme">◐</button>
@@ -1822,6 +1823,8 @@ flowchart LR
           <div>
             <h2 data-lang="en">One flat management LAN across every Pod.</h2>
             <h2 data-lang="de">Ein flaches Management-LAN über alle Pods.</h2>
+            <p class="section-intro" data-lang="en"><strong>Superseded.</strong> The bridged, flooded mesh described below was replaced by a routed one in PR #338: no bridge, no flood copies, no DNS discovery. See the <a href="management-mesh-explained.html">management mesh explainer</a>.</p>
+            <p class="section-intro" data-lang="de"><strong>Überholt.</strong> Das unten beschriebene gebridgte, flutende Mesh wurde in PR #338 durch ein geroutetes ersetzt: keine Bridge, keine Flut-Kopien, keine DNS-Discovery. Siehe den <a href="management-mesh-explained.html">Management-Mesh-Explainer</a>.</p>
             <p class="section-intro" data-lang="en">Interposition alone would leave each Pod a private island of <code>172.20.20.0/24</code>. Real labs hardcode peer management addresses: gnmic targets, syslog collectors, a plain <code>ping</code>. So each Pod’s bridge also carries a mesh VTEP (<code>c9sm0</code>), and the whole namespace becomes one broadcast domain: ARP resolves the peer device’s actual MAC, and any protocol runs device-to-device in both directions.</p>
             <p class="section-intro" data-lang="de">Interposition allein ließe jeden Pod als private Insel von <code>172.20.20.0/24</code> zurück. Echte Labs verdrahten Peer-Management-Adressen fest: gnmic-Targets, Syslog-Kollektoren, ein schlichtes <code>ping</code>. Deshalb trägt die Bridge jedes Pods zusätzlich einen Mesh-VTEP (<code>c9sm0</code>), und der ganze Namespace wird eine Broadcast-Domäne: ARP löst die echte MAC des Peer-Geräts auf, und jedes Protokoll läuft in beide Richtungen von Gerät zu Gerät.</p>
           </div>
