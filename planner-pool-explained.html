@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en" data-lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="How Clabernetes reuses a small pool of planning workers: the plan cache, fresh request processes, device startup and link changes. English and German."
+    />
+    <title>Planner pool · Clabernetes explained</title>
+    <link rel="stylesheet" href="explainer.css" />
+  </head>
+  <body>
+    <div class="progress" id="progress" aria-hidden="true"></div>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="#top"
+          ><span class="brand-mark">c9s</span
+          ><span class="brand-label">planner pool explained</span></a
+        >
+        <nav class="topnav" aria-label="Page sections">
+          <a href="#why"
+            ><span data-lang="en">Why plan?</span
+            ><span data-lang="de">Warum planen?</span></a
+          ><a href="#how"
+            ><span data-lang="en">The flow</span
+            ><span data-lang="de">Der Ablauf</span></a
+          ><a href="#reuse"
+            ><span data-lang="en">Reuse</span
+            ><span data-lang="de">Wiederverwendung</span></a
+          ><a href="#roles"
+            ><span data-lang="en">Pod roles</span
+            ><span data-lang="de">Pod-Rollen</span></a
+          ><a href="#configure"
+            ><span data-lang="en">Size the pool</span
+            ><span data-lang="de">Pool-Größe</span></a
+          ><a href="#links"
+            ><span data-lang="en">Link changes</span
+            ><span data-lang="de">Link-Änderungen</span></a
+          >
+        </nav>
+        <select
+          class="page-select"
+          id="pageSelect"
+          aria-label="Choose explainer"
+        >
+          <option value="index.html">Direct architecture</option>
+          <option value="persistence-explained.html">Persistence</option>
+          <option value="management-mesh-explained.html">
+            Management mesh
+          </option>
+          <option value="planner-pool-explained.html" selected>
+            Planner pool
+          </option>
+        </select>
+        <button
+          class="theme-button"
+          id="langButton"
+          type="button"
+          aria-label="Switch language"
+          title="Sprache wechseln / switch language"
+        >
+          DE
+        </button>
+        <button
+          class="theme-button"
+          id="themeButton"
+          type="button"
+          aria-label="Switch color theme"
+          title="Switch color theme"
+        >
+          ◐
+        </button>
+      </div>
+    </header>
+    <main id="top" class="article-page">
+      <div class="hero">
+        <span class="eyebrow">Clabernetes · direct runtime</span>
+        <h1 data-lang="en">Many devices.<br /><span>Four planners.</span></h1>
+        <h1 data-lang="de">Viele Geräte.<br /><span>Vier Planner.</span></h1>
+        <p class="hero-lead" data-lang="en">
+          Every device needs its own build sheet. A small, shared pool writes
+          those sheets, then hands the actual device startup to Kubernetes. The
+          worker Pods stay; each planning process starts fresh.
+        </p>
+        <p class="hero-lead" data-lang="de">
+          Jedes Gerät braucht seinen eigenen Bauplan. Ein kleiner gemeinsamer
+          Pool schreibt diese Pläne und übergibt den eigentlichen Gerätestart an
+          Kubernetes. Die Worker-Pods bleiben, jeder Planungsprozess startet
+          frisch.
+        </p>
+      </div>
+      <section id="why">
+        <div class="section-head">
+          <div class="section-index">01 · Planning</div>
+          <div>
+            <h2 data-lang="en">Why does a router need a plan?</h2>
+            <h2 data-lang="de">Warum braucht ein Router einen Plan?</h2>
+            <p class="section-intro" data-lang="en">
+              A kind and an image tell c9s what device you want. They do not yet
+              describe all the work needed to run it as a Kubernetes Pod.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Kind und Image sagen c9s, welches Gerät du möchtest. Sie
+              beschreiben aber noch nicht alle Schritte, um es als
+              Kubernetes-Pod zu betreiben.
+            </p>
+          </div>
+        </div>
+        <div class="grid-3">
+          <article class="card">
+            <div class="card-kicker">01</div>
+            <h3 data-lang="en">Ask the device expert</h3>
+            <h3 data-lang="de">Den Geräte-Experten fragen</h3>
+            <p data-lang="en">
+              Containerlab knows the vendor-specific startup rules: commands,
+              environment, files, mounts, interfaces and health checks. A
+              planning process runs that knowledge against a recording runtime.
+            </p>
+            <p data-lang="de">
+              Containerlab kennt die herstellerspezifischen Startregeln:
+              Befehle, Umgebung, Dateien, Mounts, Interfaces und Health-Checks.
+              Ein Planungsprozess führt dieses Wissen gegen eine aufzeichnende
+              Runtime aus.
+            </p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">02</div>
+            <h3 data-lang="en">Turn decisions into data</h3>
+            <h3 data-lang="de">Entscheidungen werden Daten</h3>
+            <p data-lang="en">
+              The result is a device plan. The controller checks that its
+              operations have supported Kubernetes equivalents, saves it, and
+              renders the device Deployment. No NOS runs inside the planning
+              worker.
+            </p>
+            <p data-lang="de">
+              Das Ergebnis ist ein Geräteplan. Der Controller prüft die
+              unterstützte Kubernetes-Abbildung, speichert den Plan und erzeugt
+              das Geräte-Deployment. Im Planungs-Worker läuft kein NOS.
+            </p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">03</div>
+            <h3 data-lang="en">Skip unchanged work</h3>
+            <h3 data-lang="de">Unveränderte Arbeit überspringen</h3>
+            <p data-lang="en">
+              If the exact planning input already has a cached plan, c9s reuses
+              it. A routine reconciliation does not need to run Containerlab
+              again.
+            </p>
+            <p data-lang="de">
+              Existiert für die exakten Planungseingaben bereits ein gecachter
+              Plan, nutzt c9s ihn erneut. Ein normaler Abgleich muss
+              Containerlab nicht nochmals ausführen.
+            </p>
+          </article>
+        </div>
+        <div class="callout" data-lang="en">
+          <strong>The same image does not mean the same plan.</strong> Two SR
+          Linux Nodes can share image metadata while having different names,
+          management addresses, links, certificates and generated files. Each
+          Node still needs a plan for its own inputs.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Dasselbe Image bedeutet nicht denselben Plan.</strong> Zwei
+          SR-Linux-Nodes können Image-Metadaten teilen, aber unterschiedliche
+          Namen, Management-Adressen, Links, Zertifikate und erzeugte Dateien
+          haben. Jeder Node braucht einen Plan für seine eigenen Eingaben.
+        </div>
+      </section>
+      <section id="how">
+        <div class="section-head">
+          <div class="section-index">02 · Request flow</div>
+          <div>
+            <h2 data-lang="en">One request, one fresh process.</h2>
+            <h2 data-lang="de">Eine Anfrage, ein frischer Prozess.</h2>
+            <p class="section-intro" data-lang="en">
+              The controller sends work to an available pool Pod in the manager
+              namespace. When all workers are busy, pending work waits and
+              retries. The same pool serves all lab namespaces.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Der Controller schickt Arbeit an einen verfügbaren Pool-Pod im
+              Manager-Namespace. Sind alle Worker beschäftigt, wartet die Arbeit
+              und wird erneut versucht. Derselbe Pool bedient alle
+              Lab-Namespaces.
+            </p>
+          </div>
+        </div>
+        <div class="diagram">
+          <div class="diagram-title">
+            <b data-lang="en">Where a plan comes from</b
+            ><b data-lang="de">Woher ein Plan kommt</b>
+          </div>
+          <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as Node controller
+  participant Cache as Plan cache
+  participant W as Pool worker
+  participant K as Kubernetes
+  C->>Cache: Look up exact planning input
+  alt Cache hit
+    Cache-->>C: Existing plan
+  else Planning needed
+    C->>C: Resolve image metadata and input files
+    C->>W: Exec a fresh planning process
+    Note over W: One request, private workspace
+    W->>W: Record Containerlab kind operations
+    W-->>C: Request extra image or certificate facts if needed
+    C-->>W: Reply over the same stream
+    W-->>C: Device plan
+    Note over W: Process exits, worker Pod stays available
+    C->>Cache: Validate and store input and plan
+  end
+  C->>K: Reconcile device Deployment
+  Note over K: Pull images, prepare files, wire and boot
+</pre
+          >
+        </div>
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-kicker">Worker lifetime</div>
+            <h3 data-lang="en">Reuse the Pod</h3>
+            <h3 data-lang="de">Den Pod wiederverwenden</h3>
+            <p data-lang="en">
+              The pool avoids scheduling, starting and deleting a helper Pod for
+              every planning request. A worker can plan r1, then a Linux tool,
+              then a router from another lab.
+            </p>
+            <p data-lang="de">
+              Der Pool spart das Scheduling, Starten und Löschen eines
+              Helfer-Pods für jede Planungsanfrage. Ein Worker kann erst r1
+              planen, dann ein Linux-Tool, dann einen Router aus einem anderen
+              Lab.
+            </p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">Request lifetime</div>
+            <h3 data-lang="en">Reset the process</h3>
+            <h3 data-lang="de">Den Prozess neu starten</h3>
+            <p data-lang="en">
+              Each request gets a new process and a private scratch directory.
+              That keeps imported Go state and generated files from one request
+              out of the next request. The pool does not cache a running
+              Containerlab instance.
+            </p>
+            <p data-lang="de">
+              Jede Anfrage bekommt einen neuen Prozess und ein privates
+              Scratch-Verzeichnis. Importierter Go-Zustand und erzeugte Dateien
+              bleiben so auf ihre Anfrage begrenzt. Der Pool hält keine laufende
+              Containerlab-Instanz im Cache.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section id="reuse">
+        <div class="section-head">
+          <div class="section-index">03 · Reuse</div>
+          <div>
+            <h2 data-lang="en">The workers stay. The requests move on.</h2>
+            <h2 data-lang="de">Die Worker bleiben. Die Anfragen wechseln.</h2>
+            <p class="section-intro" data-lang="en">
+              Step through twelve planning requests. The same worker boxes take
+              another Node each round; their process number changes. This is a
+              simplified explanation of reuse, not a timing model.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Gehe zwölf Planungsanfragen durch. Dieselben Worker-Boxen
+              übernehmen pro Runde einen weiteren Node; ihre Prozessnummer
+              ändert sich. Das ist ein vereinfachtes Modell der
+              Wiederverwendung, kein Zeitmodell.
+            </p>
+          </div>
+        </div>
+        <div class="diagram">
+          <div class="diagram-title">
+            <b data-lang="en">A small pool at work</b
+            ><b data-lang="de">Ein kleiner Pool bei der Arbeit</b>
+          </div>
+          <div class="pool-controls">
+            <label for="workerCount"
+              ><span data-lang="en">Workers</span
+              ><span data-lang="de">Worker</span></label
+            ><select id="workerCount">
+              <option value="4" selected>4</option>
+              <option value="8">8</option></select
+            ><button id="advance" type="button">
+              <span data-lang="en">Next step</span
+              ><span data-lang="de">Nächster Schritt</span></button
+            ><button id="reset" type="button">
+              <span data-lang="en">Reset</span
+              ><span data-lang="de">Zurücksetzen</span>
+            </button>
+          </div>
+          <div class="workers" id="workers"></div>
+          <p
+            class="pool-status"
+            id="poolStatus"
+            aria-live="polite"
+            aria-atomic="true"
+          ></p>
+        </div>
+        <div class="callout" data-lang="en">
+          <strong>Idle means available.</strong> When the queue is empty, the
+          four worker Pods remain ready for the next new Node or plan change.
+          Existing device Pods and their traffic do not need a worker to keep
+          running.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Leerlauf bedeutet verfügbar.</strong> Ist keine Arbeit offen,
+          bleiben die vier Worker-Pods für den nächsten neuen Node oder eine
+          Planänderung bereit. Bestehende Geräte-Pods und ihr Traffic brauchen
+          keinen Worker, um weiterzulaufen.
+        </div>
+      </section>
+      <section id="roles">
+        <div class="section-head">
+          <div class="section-index">04 · Pod roles</div>
+          <div>
+            <h2 data-lang="en">Three helpers, three different jobs.</h2>
+            <h2 data-lang="de">Drei Helfer, drei verschiedene Aufgaben.</h2>
+            <p class="section-intro" data-lang="en">
+              The word “planner” also appears in device Pods. It is worth
+              separating plan creation from applying the saved plan.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Das Wort „planner“ taucht auch in Geräte-Pods auf. Planerstellung
+              und Anwendung des gespeicherten Plans sind getrennte Schritte.
+            </p>
+          </div>
+        </div>
+        <div class="table-wrap" data-lang="en">
+          <table>
+            <thead>
+              <tr>
+                <th>Helper</th>
+                <th>Where and how long</th>
+                <th>Job</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Shared pool worker</td>
+                <td>Manager namespace · stays running</td>
+                <td>
+                  Creates a plan in a fresh process, then accepts another
+                  request. Default: four Pods shared across labs.
+                </td>
+              </tr>
+              <tr>
+                <td><code>planner</code> init container</td>
+                <td>Inside each device Pod · exits after preparation</td>
+                <td>
+                  Reads the saved plan, checks its identity and prepares files
+                  and artifacts. It does not occupy a pool worker.
+                </td>
+              </tr>
+              <tr>
+                <td><code>clabwire</code> sidecar</td>
+                <td>Inside each device Pod · stays running</td>
+                <td>
+                  Prepares local networking, connects links and management, and
+                  reports connectivity readiness while the NOS runs.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-wrap" data-lang="de">
+          <table>
+            <thead>
+              <tr>
+                <th>Helfer</th>
+                <th>Ort und Lebensdauer</th>
+                <th>Aufgabe</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Gemeinsamer Pool-Worker</td>
+                <td>Manager-Namespace · bleibt aktiv</td>
+                <td>
+                  Erstellt einen Plan in einem frischen Prozess und nimmt danach
+                  die nächste Anfrage an. Standard: vier Pods für alle Labs.
+                </td>
+              </tr>
+              <tr>
+                <td><code>planner</code>-Init-Container</td>
+                <td>In jedem Geräte-Pod · endet nach der Vorbereitung</td>
+                <td>
+                  Liest den gespeicherten Plan, prüft seine Identität und
+                  bereitet Dateien und Artefakte vor. Er belegt keinen
+                  Pool-Worker.
+                </td>
+              </tr>
+              <tr>
+                <td><code>clabwire</code>-Sidecar</td>
+                <td>In jedem Geräte-Pod · bleibt aktiv</td>
+                <td>
+                  Bereitet lokales Networking vor, verbindet Links und
+                  Management und meldet die Connectivity-Readiness, während das
+                  NOS läuft.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section id="configure">
+        <div class="section-head">
+          <div class="section-index">05 · Capacity</div>
+          <div>
+            <h2 data-lang="en">Four is the default. You can change it.</h2>
+            <h2 data-lang="de">Vier sind Standard. Du kannst das ändern.</h2>
+            <p class="section-intro" data-lang="en">
+              Set the pool size in the Clabernetes Helm values. Replicas control
+              how many planning requests can execute at once, not how many
+              devices the lab can contain.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Die Pool-Größe steht in den Clabernetes-Helm-Werten. Replicas
+              bestimmen die gleichzeitig ausführbaren Planungsanfragen, nicht
+              die Anzahl der Geräte im Lab.
+            </p>
+          </div>
+        </div>
+        <div class="code-block">
+          <div class="code-head">
+            <span>Helm values</span
+            ><button class="copy-button" type="button">copy</button>
+          </div>
+          <pre><code>plannerPool:
+  enabled: true
+  replicas: 4</code></pre>
+        </div>
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-kicker">Concurrency</div>
+            <h3 data-lang="en">When more workers help</h3>
+            <h3 data-lang="de">Wann mehr Worker helfen</h3>
+            <p data-lang="en">
+              More workers can shorten a queue of independent planning requests
+              if CPU, memory and registry access have spare capacity. They do
+              not accelerate the boot of a particular NOS or the image pull for
+              its device Pod.
+            </p>
+            <p data-lang="de">
+              Mehr Worker können eine Warteschlange unabhängiger
+              Planungsanfragen verkürzen, wenn CPU, RAM und Registry-Zugriff
+              freie Kapazität haben. Sie beschleunigen weder den Boot eines
+              einzelnen NOS noch den Image-Pull seines Geräte-Pods.
+            </p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">Resources</div>
+            <h3 data-lang="en">Why not one worker per Node?</h3>
+            <h3 data-lang="de">Warum nicht ein Worker pro Node?</h3>
+            <p data-lang="en">
+              Large bursts would create many helper Pods competing with the
+              devices for scheduling, CPU and memory. A bounded pool keeps that
+              demand predictable. The current planning-controller concurrency
+              ceiling is 16; replicas above that cannot all receive work at
+              once.
+            </p>
+            <p data-lang="de">
+              Große Startwellen würden viele Helfer-Pods erzeugen, die mit den
+              Geräten um Scheduling, CPU und RAM konkurrieren. Ein begrenzter
+              Pool hält diesen Bedarf kontrollierbar. Die aktuelle
+              Parallelitätsgrenze des Planungs-Controllers beträgt 16; darüber
+              können nicht alle Replicas gleichzeitig Arbeit erhalten.
+            </p>
+          </article>
+        </div>
+        <div class="callout" data-lang="en">
+          <strong>Fallback:</strong>
+          <code>plannerPool.enabled: false</code> selects the per-request
+          worker-Pod path. With the pool enabled, a request has a five-minute
+          upper time bound and a 64 MiB aggregate input-payload limit. Larger
+          input payloads need the fallback path; these bytes are planning
+          inputs, not device image layers.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Fallback:</strong>
+          <code>plannerPool.enabled: false</code> wählt den Pfad mit einem
+          Worker-Pod pro Anfrage. Bei aktivem Pool gilt eine Zeitobergrenze von
+          fünf Minuten und eine Grenze von 64 MiB für die gesamten Eingabedaten
+          einer Anfrage. Größere Eingaben brauchen den Fallback-Pfad; gemeint
+          sind Planungseingaben, keine Geräte-Image-Layer.
+        </div>
+      </section>
+      <section id="isolation">
+        <div class="section-head">
+          <div class="section-index">06 · Boundaries</div>
+          <div>
+            <h2 data-lang="en">Reuse without sharing a request’s state.</h2>
+            <h2 data-lang="de">
+              Wiederverwendung ohne geteilten Anfragezustand.
+            </h2>
+          </div>
+        </div>
+        <div class="grid-3">
+          <article class="card">
+            <div class="card-kicker">One at a time</div>
+            <h3 data-lang="en">A locked worker slot</h3>
+            <h3 data-lang="de">Ein gesperrter Worker-Slot</h3>
+            <p data-lang="en">
+              A worker lock prevents overlapping planning processes in the same
+              Pod, including during controller handover. A disconnected request
+              can run until its local deadline; the slot is reusable after its
+              process exits.
+            </p>
+            <p data-lang="de">
+              Eine Worker-Sperre verhindert überlappende Planungsprozesse im
+              selben Pod, auch beim Controller-Wechsel. Eine getrennte Anfrage
+              kann bis zu ihrem lokalen Zeitlimit weiterlaufen; nach Prozessende
+              ist der Slot wieder verfügbar.
+            </p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">Clean workspace</div>
+            <h3 data-lang="en">Files belong to one request</h3>
+            <h3 data-lang="de">Dateien gehören zu einer Anfrage</h3>
+            <p data-lang="en">
+              Each process gets private scratch space. Cleanup removes stale
+              request files before reuse, and the worker’s parent process reaps
+              exited children. A failed request does not become a successful
+              cached plan.
+            </p>
+            <p data-lang="de">
+              Jeder Prozess bekommt privaten Scratch-Speicher. Vor der
+              Wiederverwendung werden veraltete Anfragedateien entfernt; der
+              Elternprozess räumt beendete Kindprozesse auf. Eine
+              fehlgeschlagene Anfrage wird nicht als erfolgreicher Plan gecacht.
+            </p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">Limited access</div>
+            <h3 data-lang="en">The controller supplies the facts</h3>
+            <h3 data-lang="de">Der Controller liefert die Fakten</h3>
+            <p data-lang="en">
+              Workers have no Kubernetes token or container-runtime socket and
+              use a read-only root filesystem. The controller supplies image
+              metadata and external file contents. A default-deny NetworkPolicy
+              restricts worker traffic when enforced by the CNI.
+            </p>
+            <p data-lang="de">
+              Worker haben weder Kubernetes-Token noch Container-Runtime-Socket
+              und nutzen ein read-only Root-Dateisystem. Der Controller liefert
+              Image-Metadaten und externe Dateiinhalte. Eine
+              Default-Deny-NetworkPolicy beschränkt den Worker-Traffic, sofern
+              das CNI sie durchsetzt.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section id="links">
+        <div class="section-head">
+          <div class="section-index">07 · Changes</div>
+          <div>
+            <h2 data-lang="en">Add a cable. Replan the affected devices.</h2>
+            <h2 data-lang="de">
+              Ein Kabel hinzufügen. Betroffene Geräte neu planen.
+            </h2>
+            <p class="section-intro" data-lang="en">
+              A new Link changes the inputs of its endpoints. The pool creates
+              their updated plans; the device kind determines how those plans
+              can be applied.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Ein neuer Link verändert die Eingaben seiner Endpunkte. Der Pool
+              erstellt deren aktualisierte Pläne; das Geräte-Kind bestimmt, wie
+              sie angewendet werden können.
+            </p>
+          </div>
+        </div>
+        <div class="diagram">
+          <div class="diagram-title">
+            <b data-lang="en">Example: a new SR Linux ↔ cEOS link</b
+            ><b data-lang="de">Beispiel: ein neuer SR-Linux-↔-cEOS-Link</b>
+          </div>
+          <pre class="mermaid">
+flowchart TD
+  link["Add a Link between srl and ceos"] --> pool["Pool plans the affected Nodes"]
+  pool --> srl["SR Linux: Live&lt;br/&gt; keep Pod, update wiring revision"]
+  pool --> ceos["cEOS: Recreate&lt;br/&gt; replace Pod and prepare interfaces afresh"]
+  srl --> wire["clabwire connects the two endpoints"]
+  ceos --> local["Local startup gate permits NOS boot"]
+  local --> wire
+  wire --> ready["Connectivity and device health determine readiness"]
+</pre
+          >
+        </div>
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-kicker">Startup</div>
+            <h3 data-lang="en">Let both devices boot</h3>
+            <h3 data-lang="de">Beide Geräte booten lassen</h3>
+            <p data-lang="en">
+              The sidecar’s <code>/startupz</code> gate checks local
+              preparation. It does not wait for the remote NOS to be healthy.
+              Its separate <code>/readyz</code> gate checks connectivity,
+              avoiding a circular wait where each endpoint blocks the other’s
+              startup.
+            </p>
+            <p data-lang="de">
+              Das <code>/startupz</code>-Gate des Sidecars prüft die lokale
+              Vorbereitung. Es wartet nicht auf ein gesundes entferntes NOS. Das
+              getrennte <code>/readyz</code>-Gate prüft die Konnektivität und
+              vermeidet, dass beide Endpunkte gegenseitig ihren Start
+              blockieren.
+            </p>
+          </article>
+          <article class="card">
+            <div class="card-kicker">Disruption</div>
+            <h3 data-lang="en">The kind still matters</h3>
+            <h3 data-lang="de">Das Kind bleibt entscheidend</h3>
+            <p data-lang="en">
+              Live-capable changes can keep the device Pod. A kind requiring
+              Restart or Recreate gets a replacement Pod with a fresh network
+              namespace. That can interrupt traffic through that device; a
+              planner pool does not make every cable change hitless.
+            </p>
+            <p data-lang="de">
+              Live-fähige Änderungen können den Geräte-Pod behalten. Verlangt
+              ein Kind Restart oder Recreate, bekommt es einen Ersatz-Pod mit
+              frischem Netzwerk-Namespace. Das kann seinen Traffic unterbrechen;
+              ein Planner-Pool macht nicht jede Kabeländerung
+              unterbrechungsfrei.
+            </p>
+          </article>
+        </div>
+        <div class="callout" data-lang="en">
+          <strong>The pool finishes before the cable is ready.</strong> Planning
+          describes the desired device. Kubernetes runs it, and
+          <code>clabwire</code> applies the wiring. These are separate stages
+          with separate lifetimes.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Der Pool ist fertig, bevor das Kabel bereit ist.</strong>
+          Planung beschreibt das gewünschte Gerät. Kubernetes betreibt es, und
+          <code>clabwire</code> setzt die Verkabelung um. Das sind getrennte
+          Phasen mit unterschiedlicher Lebensdauer.
+        </div>
+      </section>
+      <footer>
+        <div class="footer-row">
+          <span data-lang="en"
+            ><a href="index.html#planning"
+              >Back to the full architecture →</a
+            ></span
+          ><span data-lang="de"
+            ><a href="index.html#planning"
+              >Zurück zur gesamten Architektur →</a
+            ></span
+          ><a href="https://github.com/clabernetes/clabernetes/pull/346"
+            ><span data-lang="en">Implementation</span
+            ><span data-lang="de">Implementierung</span></a
+          >
+        </div>
+      </footer>
+    </main>
+    <script src="explainer.js" defer></script>
+    <script src="planner-pool.js" defer></script>
+  </body>
+</html>
