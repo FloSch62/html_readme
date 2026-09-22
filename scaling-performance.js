@@ -80,9 +80,9 @@
   const form = document.getElementById("capacityCalculator");
   const fields = [...form.querySelectorAll('input[type="number"]')];
   const profiles = {
-    srl: [0.5, 2],
+    srl: [2, 2],
     frr: [0.1, 0.25],
-    srsim: [0.5, 4],
+    srsim: [2, 4],
     busybox: [0.01, 0.03125],
   };
   const hardware = { small: [8, 32], medium: [16, 64], large: [32, 128] };
@@ -109,13 +109,16 @@
     const ram = v.capRAM - v.capReservedRAM;
     const routerFit = fit(slots, cpu, ram, v.capPodCPU, v.capPodRAM);
     const clientFit = fit(slots, cpu, ram, v.capClientCPU, v.capClientRAM);
-    if (routerFit < 1 || (clients > 0 && clientFit < 1)) return null;
+    if ((routers > 0 && routerFit < 1) || (clients > 0 && clientFit < 1))
+      return null;
     const base = [];
     const add = (list, workers, r, c = 0) => {
       if (workers > 0) list.push({ workers, routers: r, clients: c });
     };
-    add(base, Math.floor(routers / routerFit), routerFit);
-    add(base, routers % routerFit ? 1 : 0, routers % routerFit);
+    if (routers > 0) {
+      add(base, Math.floor(routers / routerFit), routerFit);
+      add(base, routers % routerFit ? 1 : 0, routers % routerFit);
+    }
     const placement = [];
     let remaining = clients;
     for (const group of base) {
@@ -151,11 +154,43 @@
       cpu,
       ram,
       routerFit,
+      routers,
       workers,
       placement,
       demandCPU: routers * v.capPodCPU + clients * v.capClientCPU,
       demandRAM: routers * v.capPodRAM + clients * v.capClientRAM,
     };
+  }
+
+  // Search the same router-first layout used by forward sizing. Adding a router
+  // only removes residual client capacity, so the fit predicate is monotone.
+  function capacity(v, workers, clients) {
+    const empty = estimate(v, 0, clients);
+    if (
+      !empty ||
+      empty.workers > workers ||
+      empty.cpu < 0 ||
+      empty.ram < 0 ||
+      empty.slots < 0
+    )
+      return null;
+    let low = 0;
+    let high = workers * empty.routerFit;
+    while (low < high) {
+      const count = Math.ceil((low + high) / 2);
+      const candidate = estimate(v, count, clients);
+      if (candidate && candidate.workers <= workers) low = count;
+      else high = count - 1;
+    }
+    const result = estimate(v, low, clients);
+    if (result.workers < workers)
+      result.placement.push({
+        workers: workers - result.workers,
+        routers: 0,
+        clients: 0,
+      });
+    result.workers = workers;
+    return result;
   }
 
   function render() {
@@ -164,6 +199,12 @@
     const fmt = (n) =>
       n.toLocaleString(de ? "de-DE" : "en-US", { maximumFractionDigits: 3 });
     const mode = selected("capacityMode");
+    const reverse = mode === "cluster";
+    get("calcClusterFields").hidden = !reverse;
+    get("capWorkers").disabled = !reverse;
+    get("calcResultLabel").textContent = reverse
+      ? t("Your device capacity estimate", "Deine Geräte-Kapazitätsschätzung")
+      : t("Your worker estimate", "Deine Worker-Schätzung");
     get("calcCountFields").hidden = mode !== "count";
     get("calcClosFields").hidden = mode !== "clos";
     get("capDevices").disabled = mode !== "count";
@@ -178,20 +219,25 @@
       );
     });
     const profile = selected("capacityProfile");
+    const nos = profile === "srl" || profile === "srsim";
+    get("calcNosBudget").hidden = !nos;
+    const nosCPU = Number(selected("capacityNosCPU"));
+    get("calcSrlBudget").textContent = `${fmt(nosCPU)} CPU · 2 GiB`;
+    get("calcSrsimBudget").textContent = `${fmt(nosCPU)} CPU · 4 GiB`;
     get("calcProfileHint").textContent =
-      profile === "frr" || profile === "srsim"
+      profile === "custom"
         ? t(
-            "Uses the larger fabric-router budget for all routers. Clients have their own budget.",
-            "Nutzt das größere Fabric-Router-Budget für alle Router. Clients haben ein eigenes Budget.",
+            "Custom software selected. Set the CPU and RAM budget per device below; use the effective Pod request including helpers and init containers, then allow for operating headroom.",
+            "Eigene Software gewählt. CPU- und RAM-Budget pro Gerät unten einstellen; den effektiven Pod-Request einschließlich Helfern und Init-Containern sowie Betriebsreserve berücksichtigen.",
           )
-        : profile
+        : nos && nosCPU === 0.5
           ? t(
-              "One device Pod per router; clients are counted separately.",
-              "Ein Geräte-Pod pro Router; Clients werden separat gezählt.",
+              "Slimmed-down benchmark CPU budget active. Use 1–2 vCPU for safer general planning, and validate your workload.",
+              "Abgespecktes Benchmark-CPU-Budget aktiv. Für eine vorsichtigere allgemeine Planung 1–2 vCPU nutzen und den Workload prüfen.",
             )
           : t(
-              "Custom router budget active. Choose a device card to restore its recorded profile.",
-              "Eigenes Router-Budget aktiv. Eine Gerätekarte stellt das aufgezeichnete Profil wieder her.",
+              "One device Pod per router; clients have a separate budget. Editing a router budget selects Custom software.",
+              "Ein Geräte-Pod pro Router; Clients haben ein eigenes Budget. Ein geändertes Router-Budget wählt Eigene Software.",
             );
     const invalid = fields.find(
       (field) =>
@@ -233,11 +279,15 @@
     const v = Object.fromEntries(
       fields.map((field) => [field.id, field.valueAsNumber]),
     );
-    const routers =
+    let routers =
       mode === "clos"
         ? v.capGroups * (v.capLeaves + v.capSpines) + v.capSupers
         : v.capDevices;
     const clients = v.capClients;
+    const result = reverse
+      ? capacity(v, v.capWorkers, clients)
+      : estimate(v, routers, clients);
+    if (reverse) routers = result?.routers ?? 0;
     const pods = routers + clients;
     const links =
       mode === "clos"
@@ -257,13 +307,17 @@
       );
       return;
     }
-    const result = estimate(v, routers, clients);
     if (!result || !Number.isFinite(result.workers * (v.capCPU + v.capRAM))) {
       error(
-        t(
-          "A device cannot fit on this worker after reserves. Choose a larger worker or review the budgets and reserves below.",
-          "Ein Gerät passt nach Abzug der Reserve nicht auf diesen Worker. Größeren Worker wählen oder Budgets und Reserven unten prüfen.",
-        ),
+        reverse
+          ? t(
+              "The clients or reserves do not fit in this cluster. Reduce clients, increase workers, or review the budgets and reserves.",
+              "Clients oder Reserven passen nicht in diesen Cluster. Clients reduzieren, Worker ergänzen oder Budgets und Reserven prüfen.",
+            )
+          : t(
+              "A device cannot fit on this worker after reserves. Choose a larger worker or review the budgets and reserves below.",
+              "Ein Gerät passt nach Abzug der Reserve nicht auf diesen Worker. Größeren Worker wählen oder Budgets und Reserven unten prüfen.",
+            ),
       );
       return;
     }
@@ -283,16 +337,33 @@
       `${fmt(result.cpu)} vCPU, ${fmt(result.ram)} GiB and ${fmt(result.slots)} Pod slots available per worker after reserves. Pod ceiling: ${fmt(v.capMaxPods)}.`,
       `Nach Reserve pro Worker verfügbar: ${fmt(result.cpu)} vCPU, ${fmt(result.ram)} GiB und ${fmt(result.slots)} Pod-Slots. Pod-Limit: ${fmt(v.capMaxPods)}.`,
     );
+    const count = reverse ? routers : result.workers;
+    const unit = reverse
+      ? t(
+          count === 1 ? "router / device" : "routers / devices",
+          "Router / Geräte",
+        )
+      : t(count === 1 ? "worker" : "workers", "Worker");
     get("capacityResult").innerHTML =
-      `<strong class="calc-worker-number">${fmt(result.workers)}</strong><span>${t(result.workers === 1 ? "worker" : "workers", "Worker")}</span>`;
-    get("capacityDetail").textContent = t(
-      `Each with ${fmt(v.capCPU)} vCPU / ${fmt(v.capRAM)} GiB · for ${fmt(pods)} device Pods`,
-      `Jeweils ${fmt(v.capCPU)} vCPU / ${fmt(v.capRAM)} GiB · für ${fmt(pods)} Geräte-Pods`,
-    );
-    get("calcMobileEstimate").textContent = t(
-      `${fmt(result.workers)} ${result.workers === 1 ? "worker" : "workers"} estimated`,
-      `${fmt(result.workers)} Worker geschätzt`,
-    );
+      `<strong class="calc-worker-number">${fmt(count)}</strong><span>${unit}</span>`;
+    get("capacityDetail").textContent = reverse
+      ? t(
+          `Plus ${fmt(clients)} clients · ${fmt(pods)} device Pods in total on ${fmt(result.workers)} workers, each ${fmt(v.capCPU)} vCPU / ${fmt(v.capRAM)} GiB`,
+          `Plus ${fmt(clients)} Clients · insgesamt ${fmt(pods)} Geräte-Pods auf ${fmt(result.workers)} Workern mit je ${fmt(v.capCPU)} vCPU / ${fmt(v.capRAM)} GiB`,
+        )
+      : t(
+          `Each with ${fmt(v.capCPU)} vCPU / ${fmt(v.capRAM)} GiB · for ${fmt(pods)} device Pods`,
+          `Jeweils ${fmt(v.capCPU)} vCPU / ${fmt(v.capRAM)} GiB · für ${fmt(pods)} Geräte-Pods`,
+        );
+    get("calcMobileEstimate").textContent = reverse
+      ? t(
+          `${fmt(routers)} devices + ${fmt(clients)} clients`,
+          `${fmt(routers)} Geräte + ${fmt(clients)} Clients`,
+        )
+      : t(
+          `${fmt(result.workers)} ${result.workers === 1 ? "worker" : "workers"} estimated`,
+          `${fmt(result.workers)} Worker geschätzt`,
+        );
     get("calcTotalCPU").textContent = fmt(result.workers * v.capCPU);
     get("calcTotalRAM").textContent = fmt(result.workers * v.capRAM);
     const limits = [
@@ -353,10 +424,15 @@
     );
     const note = document.createElement("p");
     note.className = "calc-hint";
-    note.textContent = t(
-      "Packs routers first, then clients into the remaining space. This is a feasible budget layout, not a prediction of Kubernetes placement or proof of the minimum worker count.",
-      "Platziert zuerst Router, danach Clients im freien Budget. Dies ist eine mögliche Budgetverteilung, keine Vorhersage der Kubernetes-Platzierung oder ein Beweis der minimalen Worker-Anzahl.",
-    );
+    note.textContent = reverse
+      ? t(
+          "Finds the largest router count that fits this router-first layout while accommodating all clients. Other placements may fit more. This is a scheduling-budget estimate, not a measured operating limit; Kubernetes placement, boot peaks and traffic can reduce usable capacity.",
+          "Ermittelt die größte Router-Anzahl für diese Router-zuerst-Verteilung einschließlich aller Clients. Andere Verteilungen können mehr ermöglichen. Dies ist eine Scheduling-Budgetschätzung, keine gemessene Betriebsgrenze; Kubernetes-Platzierung, Boot-Spitzen und Traffic können die nutzbare Kapazität reduzieren.",
+        )
+      : t(
+          "Packs routers first, then clients into the remaining space. This is a feasible budget layout, not a prediction of Kubernetes placement or proof of the minimum worker count.",
+          "Platziert zuerst Router, danach Clients im freien Budget. Dies ist eine mögliche Budgetverteilung, keine Vorhersage der Kubernetes-Platzierung oder ein Beweis der minimalen Worker-Anzahl.",
+        );
     get("calcPlacement").append(note);
     get("calcNextStep").textContent = limiting.includes(labels[0])
       ? t(
@@ -368,22 +444,26 @@
           "Worker-Größen vergleichen. Mehr RAM oder CPU ermöglicht mehr Router, bis Pod-Slots begrenzen.",
         );
     for (const [key, [cpu, ram]] of Object.entries(hardware)) {
-      const preview = estimate(
-        {
-          ...v,
-          capCPU: cpu,
-          capRAM: ram,
-          capReservedCPU: cpu / 8,
-          capReservedRAM: ram / 8,
-        },
-        routers,
-        clients,
-      );
+      const previewValues = {
+        ...v,
+        capCPU: cpu,
+        capRAM: ram,
+        capReservedCPU: cpu / 8,
+        capReservedRAM: ram / 8,
+      };
+      const preview = reverse
+        ? capacity(previewValues, v.capWorkers, clients)
+        : estimate(previewValues, routers, clients);
       get(`calcPreview-${key}`).textContent = preview
-        ? t(
-            `${fmt(preview.workers)} ${preview.workers === 1 ? "worker" : "workers"}`,
-            `${fmt(preview.workers)} Worker`,
-          )
+        ? reverse
+          ? t(
+              `${fmt(preview.routers)} devices`,
+              `${fmt(preview.routers)} Geräte`,
+            )
+          : t(
+              `${fmt(preview.workers)} ${preview.workers === 1 ? "worker" : "workers"}`,
+              `${fmt(preview.workers)} Worker`,
+            )
         : t("Does not fit", "Passt nicht");
     }
   }
@@ -393,9 +473,15 @@
     const field = event.target;
     if (field.name === "capacityProfile" && profiles[field.value]) {
       const [cpu, ram] = profiles[field.value];
-      set("capPodCPU", cpu);
+      set(
+        "capPodCPU",
+        ["srl", "srsim"].includes(field.value)
+          ? selected("capacityNosCPU")
+          : cpu,
+      );
       set("capPodRAM", ram);
     }
+    if (field.name === "capacityNosCPU") set("capPodCPU", field.value);
     if (field.name === "capacityHardware" && hardware[field.value]) {
       const [cpu, ram] = hardware[field.value];
       set("capCPU", cpu);
@@ -409,7 +495,7 @@
     if (event.target.type !== "number") return;
     if (["capPodCPU", "capPodRAM"].includes(event.target.id)) {
       form.querySelectorAll('[name="capacityProfile"]').forEach((radio) => {
-        radio.checked = false;
+        radio.checked = radio.value === "custom";
       });
     }
     render();

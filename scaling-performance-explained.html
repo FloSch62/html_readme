@@ -298,6 +298,42 @@ flowchart LR
                     /><span data-lang="en">Grouped Clos</span
                     ><span data-lang="de">Gruppiertes Clos</span></label
                   >
+                  <label
+                    ><input
+                      type="radio"
+                      name="capacityMode"
+                      value="cluster"
+                    /><span data-lang="en">I have a cluster</span
+                    ><span data-lang="de">Ich habe einen Cluster</span></label
+                  >
+                </div>
+                <div id="calcClusterFields" hidden>
+                  <label class="calc-field" for="capWorkers"
+                    ><span data-lang="en">Available Kubernetes workers</span
+                    ><span data-lang="de">Verfügbare Kubernetes-Worker</span
+                    ><input
+                      id="capWorkers"
+                      name="capWorkers"
+                      type="number"
+                      min="1"
+                      max="1000000"
+                      step="1"
+                      value="4"
+                      required
+                  /></label>
+                  <p class="calc-hint">
+                    <span data-lang="en"
+                      >Workers eligible for lab Pods, all with the hardware
+                      chosen below. Exclude dedicated control-plane nodes and
+                      any workers kept as failure reserve. Clients below are
+                      included before calculating router capacity.</span
+                    ><span data-lang="de"
+                      >Für Lab-Pods nutzbare Worker mit identischer Hardware wie
+                      unten gewählt. Dedizierte Control-Plane-Nodes und
+                      Ausfallreserve nicht mitzählen. Die Clients unten werden
+                      bei der Router-Kapazität bereits berücksichtigt.</span
+                    >
+                  </p>
                 </div>
                 <div id="calcCountFields">
                   <div
@@ -433,8 +469,8 @@ flowchart LR
                       ><span class="calc-choice-description"
                         ><span data-lang="en">Container NOS</span
                         ><span data-lang="de">Container-NOS</span></span
-                      ><span class="calc-choice-value"
-                        >0.5 CPU · 2 GiB</span
+                      ><span class="calc-choice-value" id="calcSrlBudget"
+                        >2 CPU · 2 GiB</span
                       ></span
                     ></label
                   ><label class="calc-choice"
@@ -461,8 +497,8 @@ flowchart LR
                       ><span class="calc-choice-description"
                         ><span data-lang="en">SR OS simulator</span
                         ><span data-lang="de">SR-OS-Simulator</span></span
-                      ><span class="calc-choice-value"
-                        >0.5 CPU · 4 GiB</span
+                      ><span class="calc-choice-value" id="calcSrsimBudget"
+                        >2 CPU · 4 GiB</span
                       ></span
                     ></label
                   ><label class="calc-choice"
@@ -480,18 +516,135 @@ flowchart LR
                       ></span
                     ></label
                   >
+                  <label class="calc-choice"
+                    ><input
+                      type="radio"
+                      name="capacityProfile"
+                      value="custom"
+                    /><span class="calc-choice-body"
+                      ><strong
+                        ><span data-lang="en">Custom software</span
+                        ><span data-lang="de">Eigene Software</span></strong
+                      ><span class="calc-choice-description"
+                        ><span data-lang="en"
+                          >Your image and resource budget</span
+                        ><span data-lang="de"
+                          >Eigenes Image und Ressourcenbudget</span
+                        ></span
+                      ><span class="calc-choice-value"
+                        ><span data-lang="en">Set CPU and RAM below</span
+                        ><span data-lang="de"
+                          >CPU und RAM unten einstellen</span
+                        ></span
+                      ></span
+                    ></label
+                  >
                 </div>
+                <fieldset id="calcNosBudget" class="calc-nos-budget">
+                  <legend>
+                    <span data-lang="en">CPU budget per router</span
+                    ><span data-lang="de">CPU-Budget pro Router</span>
+                  </legend>
+                  <div class="calc-cpu-options">
+                    <label
+                      ><input
+                        type="radio"
+                        name="capacityNosCPU"
+                        value="2"
+                        checked
+                      /><span data-lang="en">2 vCPU · more headroom</span
+                      ><span data-lang="de">2 vCPU · mehr Reserve</span></label
+                    ><label
+                      ><input
+                        type="radio"
+                        name="capacityNosCPU"
+                        value="1"
+                      /><span data-lang="en">1 vCPU · standard</span
+                      ><span data-lang="de">1 vCPU · Standard</span></label
+                    ><label
+                      ><input
+                        type="radio"
+                        name="capacityNosCPU"
+                        value="0.5"
+                      /><span data-lang="en"
+                        >0.5 vCPU · slimmed-down benchmark</span
+                      ><span data-lang="de"
+                        >0,5 vCPU · abgespeckter Benchmark</span
+                      ></label
+                    >
+                  </div>
+                </fieldset>
                 <p class="calc-hint" id="calcProfileHint"></p>
                 <p class="calc-hint">
                   <span data-lang="en"
-                    >Recorded request budgets, not peak usage. Adjust for your
-                    image, configuration and traffic in the settings
-                    below.</span
+                    >For SR Linux and SR-SIM, start with 1–2 vCPU per router; 2
+                    vCPU is selected for more headroom. The 0.5 vCPU option
+                    reflects slimmed-down benchmark workloads. RAM still uses
+                    the recorded profile: adjust both CPU and RAM for your
+                    image, configuration, boot peaks and traffic.</span
                   ><span data-lang="de"
-                    >Aufgezeichnete Request-Budgets, keine Spitzenlast. Unten
-                    für Image, Konfiguration und Traffic anpassen.</span
+                    >Für SR Linux und SR-SIM mit 1–2 vCPU pro Router planen; für
+                    mehr Reserve sind 2 vCPU vorausgewählt. Die Option 0,5 vCPU
+                    entspricht abgespeckten Benchmark-Workloads. RAM basiert
+                    weiterhin auf dem aufgezeichneten Profil: CPU und RAM für
+                    Image, Konfiguration, Boot-Spitzen und Traffic
+                    anpassen.</span
                   >
                 </p>
+                <fieldset id="calcDeviceBudgets" class="calc-device-budgets">
+                  <legend>
+                    <span class="calc-step">↳</span
+                    ><span data-lang="en">Per-device budget</span
+                    ><span data-lang="de">Budget pro Gerät</span>
+                  </legend>
+                  <div class="calc-input-grid">
+                    <label class="calc-field" for="capPodCPU"
+                      ><span data-lang="en">Router / device · vCPU</span
+                      ><span data-lang="de">Router / Gerät · vCPU</span
+                      ><input
+                        id="capPodCPU"
+                        name="capPodCPU"
+                        type="number"
+                        min="0.001"
+                        step="any"
+                        value="2"
+                        required /></label
+                    ><label class="calc-field" for="capPodRAM"
+                      ><span data-lang="en">Router / device · GiB</span
+                      ><span data-lang="de">Router / Gerät · GiB</span
+                      ><input
+                        id="capPodRAM"
+                        name="capPodRAM"
+                        type="number"
+                        min="0.001"
+                        step="any"
+                        value="2"
+                        required /></label
+                    ><label class="calc-field" for="capClientCPU"
+                      ><span data-lang="en">Client · vCPU</span
+                      ><span data-lang="de">Client · vCPU</span
+                      ><input
+                        id="capClientCPU"
+                        name="capClientCPU"
+                        type="number"
+                        min="0.001"
+                        step="any"
+                        value="0.1"
+                        required /></label
+                    ><label class="calc-field" for="capClientRAM"
+                      ><span data-lang="en">Client · GiB</span
+                      ><span data-lang="de">Client · GiB</span
+                      ><input
+                        id="capClientRAM"
+                        name="capClientRAM"
+                        type="number"
+                        min="0.001"
+                        step="any"
+                        value="0.125"
+                        required
+                    /></label>
+                  </div>
+                </fieldset>
               </fieldset>
               <fieldset class="calc-step-panel">
                 <legend>
@@ -589,63 +742,10 @@ flowchart LR
                       Workloads und Betriebsreserve ab.</span
                     >
                   </p>
+
                   <fieldset>
                     <legend>
-                      <span class="calc-step">A</span
-                      ><span data-lang="en">Per-device budget</span
-                      ><span data-lang="de">Budget pro Gerät</span>
-                    </legend>
-                    <div class="calc-input-grid">
-                      <label class="calc-field" for="capPodCPU"
-                        ><span data-lang="en">Router / device · vCPU</span
-                        ><span data-lang="de">Router / Gerät · vCPU</span
-                        ><input
-                          id="capPodCPU"
-                          name="capPodCPU"
-                          type="number"
-                          min="0.001"
-                          step="any"
-                          value="0.5"
-                          required /></label
-                      ><label class="calc-field" for="capPodRAM"
-                        ><span data-lang="en">Router / device · GiB</span
-                        ><span data-lang="de">Router / Gerät · GiB</span
-                        ><input
-                          id="capPodRAM"
-                          name="capPodRAM"
-                          type="number"
-                          min="0.001"
-                          step="any"
-                          value="2"
-                          required /></label
-                      ><label class="calc-field" for="capClientCPU"
-                        ><span data-lang="en">Client · vCPU</span
-                        ><span data-lang="de">Client · vCPU</span
-                        ><input
-                          id="capClientCPU"
-                          name="capClientCPU"
-                          type="number"
-                          min="0.001"
-                          step="any"
-                          value="0.1"
-                          required /></label
-                      ><label class="calc-field" for="capClientRAM"
-                        ><span data-lang="en">Client · GiB</span
-                        ><span data-lang="de">Client · GiB</span
-                        ><input
-                          id="capClientRAM"
-                          name="capClientRAM"
-                          type="number"
-                          min="0.001"
-                          step="any"
-                          value="0.125"
-                          required
-                      /></label>
-                    </div>
-                  </fieldset>
-                  <fieldset>
-                    <legend>
-                      <span class="calc-step">B</span
+                      <span class="calc-step">↳</span
                       ><span data-lang="en">Reserve on each worker</span
                       ><span data-lang="de">Reserve auf jedem Worker</span>
                     </legend>
@@ -718,7 +818,7 @@ flowchart LR
               id="calcEstimate"
               aria-label="Cluster estimate"
             >
-              <span class="calc-result-label"
+              <span class="calc-result-label" id="calcResultLabel"
                 ><span data-lang="en">Your worker estimate</span
                 ><span data-lang="de">Deine Worker-Schätzung</span></span
               >
@@ -823,31 +923,35 @@ flowchart LR
         </p>
         <div class="callout" data-lang="en">
           <strong
-            >These presets are recorded requests, not measured peak
-            requirements.</strong
+            >Planning budgets and slimmed-down benchmark requests are
+            different.</strong
           >
-          The SR Linux run used 0.5 CPU / 2 GiB per router. FRR leaves used 0.05
-          CPU / 128 MiB and fabric routers 0.1 CPU / 256 MiB; SR-SIM leaves used
-          0.25 CPU / 3 GiB and fabric routers 0.5 CPU / 4 GiB. The calculator
-          applies the larger role budget to every router for those mixed Clos
-          examples; clients have a separate budget of 0.1 CPU / 128 MiB. Helpers
-          in the inspected Pods had no explicit requests but still consumed
-          resources. Add their use and boot/traffic headroom to your budgets;
-          increase budgets if measured usage exceeds requests.
+          The calculator defaults to 2 vCPU per SR Linux or SR-SIM router, with
+          a 1 vCPU option for standard planning. The recorded SR Linux run used
+          only 0.5 CPU / 2 GiB per router. FRR leaves used 0.05 CPU / 128 MiB
+          and fabric routers 0.1 CPU / 256 MiB; SR-SIM leaves used 0.25 CPU / 3
+          GiB and fabric routers 0.5 CPU / 4 GiB. These reduced CPU requests are
+          benchmark profiles, not general sizing recommendations. RAM presets
+          retain the recorded router budgets, and clients default to 0.1 CPU /
+          128 MiB. Helpers in the inspected Pods had no explicit requests but
+          still consumed resources. Include their use and boot/traffic headroom
+          in your budgets.
         </div>
         <div class="callout" data-lang="de">
           <strong
-            >Die Presets sind aufgezeichnete Requests, keine gemessenen
-            Spitzenanforderungen.</strong
+            >Planungsbudgets und abgespeckte Benchmark-Requests unterscheiden
+            sich.</strong
           >
-          SR Linux nutzte 0,5 CPU / 2 GiB pro Router. FRR-Leaves nutzten 0,05
-          CPU / 128 MiB, Fabric-Router 0,1 CPU / 256 MiB; SR-SIM-Leaves 0,25 CPU
-          / 3 GiB, Fabric-Router 0,5 CPU / 4 GiB. Für diese gemischten
-          Clos-Beispiele rechnet der Rechner jeden Router mit dem größeren
-          Rollenbudget; Clients haben separat 0,1 CPU / 128 MiB. Helfer in den
+          Der Rechner startet mit 2 vCPU pro SR-Linux- oder SR-SIM-Router; für
+          die Standardplanung sind auch 1 vCPU wählbar. Der aufgezeichnete
+          SR-Linux-Lauf nutzte nur 0,5 CPU / 2 GiB pro Router. FRR-Leaves
+          nutzten 0,05 CPU / 128 MiB, Fabric-Router 0,1 CPU / 256 MiB;
+          SR-SIM-Leaves 0,25 CPU / 3 GiB, Fabric-Router 0,5 CPU / 4 GiB. Diese
+          reduzierten CPU-Requests sind Benchmark-Profile, keine allgemeine
+          Größenempfehlung. RAM-Presets behalten die aufgezeichneten
+          Router-Budgets; Clients starten mit 0,1 CPU / 128 MiB. Helfer in den
           geprüften Pods hatten keine expliziten Requests, verbrauchten aber
-          Ressourcen. Ihren Verbrauch sowie Boot-/Traffic-Reserve einrechnen und
-          Budgets erhöhen, wenn gemessener Verbrauch die Requests übersteigt.
+          Ressourcen. Ihren Verbrauch sowie Boot-/Traffic-Reserve einplanen.
         </div>
         <h3 data-lang="en">
           20, 100, 200 or 1,000+ devices: a starting estimate
@@ -878,8 +982,8 @@ flowchart LR
                 <th>Total device Pods / Alle Geräte-Pods</th>
                 <th>BusyBox<br />0.01 CPU / 32 MiB</th>
                 <th>FRR budget<br />0.1 CPU / 256 MiB</th>
-                <th>SR Linux<br />0.5 CPU / 2 GiB</th>
-                <th>SR-SIM budget<br />0.5 CPU / 4 GiB</th>
+                <th>SR Linux<br />2 CPU / 2 GiB</th>
+                <th>SR-SIM budget<br />2 CPU / 4 GiB</th>
               </tr>
             </thead>
             <tbody>
@@ -887,59 +991,59 @@ flowchart LR
                 <td>20</td>
                 <td>1</td>
                 <td>1</td>
-                <td>1</td>
-                <td>2</td>
+                <td>3</td>
+                <td>3</td>
               </tr>
               <tr>
                 <td>100</td>
                 <td>1</td>
                 <td>1</td>
-                <td>4</td>
-                <td>8</td>
+                <td>15</td>
+                <td>15</td>
               </tr>
               <tr>
                 <td>200</td>
                 <td>2</td>
                 <td>2</td>
-                <td>8</td>
-                <td>15</td>
+                <td>29</td>
+                <td>29</td>
               </tr>
               <tr>
                 <td>1000</td>
                 <td>10</td>
                 <td>10</td>
-                <td>36</td>
-                <td>72</td>
+                <td>143</td>
+                <td>143</td>
               </tr>
               <tr>
                 <td>1900</td>
                 <td>19</td>
                 <td>19</td>
-                <td>68</td>
-                <td>136</td>
+                <td>272</td>
+                <td>272</td>
               </tr>
             </tbody>
           </table>
         </div>
         <p data-lang="en">
-          Example: 100 SR Linux routers plus four additional clients still
-          yields <strong>four workers</strong> at 0.5 CPU / 2 GiB per router and
-          0.1 CPU / 128 MiB per client: 64 CPU cores and 256 GiB installed
-          across the workers. For BusyBox or the FRR profile, 104 Pods needs
-          <strong>two workers</strong> because only 100 lab slots per worker
-          remain. Add the control plane separately; this estimate includes no
-          spare worker for failures and predicts no startup time or forwarding
-          throughput.
+          Example: 100 SR Linux routers plus four clients need an estimated
+          <strong>15 workers</strong> with the default 2 vCPU / 2 GiB router
+          budget and 0.1 CPU / 128 MiB client budget: 240 vCPU and 960 GiB
+          installed across the workers. Choosing 1 vCPU per router gives eight
+          workers; the slimmed-down 0.5 vCPU profile gives four. BusyBox or FRR
+          needs two workers for 104 Pods because only 100 lab slots per worker
+          remain. Add the control plane and failure capacity separately. These
+          estimates predict neither startup time nor forwarding throughput.
         </p>
         <p data-lang="de">
-          Beispiel: 100 SR-Linux-Router plus vier zusätzliche Clients ergeben
-          weiterhin <strong>vier Worker</strong> mit 0,5 CPU / 2 GiB pro Router
-          und 0,1 CPU / 128 MiB pro Client: insgesamt 64 CPU-Kerne und 256 GiB
-          installierter Worker-RAM. BusyBox oder das FRR-Profil benötigen für
-          104 Pods <strong>zwei Worker</strong>, weil pro Worker nur 100
-          Lab-Slots bleiben. Die Control Plane separat einplanen; die Schätzung
-          enthält keinen Ausfall-Reserveworker und sagt weder Startzeit noch
-          Forwarding-Durchsatz voraus.
+          Beispiel: 100 SR-Linux-Router plus vier Clients benötigen geschätzt
+          <strong>15 Worker</strong> mit dem Standardbudget 2 vCPU / 2 GiB pro
+          Router und 0,1 CPU / 128 MiB pro Client: insgesamt 240 vCPU und 960
+          GiB Worker-RAM. Mit 1 vCPU pro Router ergeben sich acht Worker, mit
+          dem abgespeckten 0,5-vCPU-Profil vier. BusyBox oder FRR benötigt zwei
+          Worker für 104 Pods, weil pro Worker nur 100 Lab-Slots bleiben.
+          Control Plane und Ausfallreserve separat ergänzen. Die Schätzungen
+          sagen weder Startzeit noch Forwarding-Durchsatz voraus.
         </p>
         <p data-lang="en">
           <code
