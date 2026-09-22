@@ -1,0 +1,1816 @@
+<!doctype html>
+<html lang="en" data-lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Measuring large topology startup: the stages, startup batches, controller changes, and the measured 1,000-device result. English and German, with the complete original guide."
+    />
+    <title>Scaling &amp; performance · Clabernetes explained</title>
+    <link rel="stylesheet" href="explainer.css" />
+    <link rel="stylesheet" href="scaling-performance.css" />
+  </head>
+  <body>
+    <div class="progress" id="progress" aria-hidden="true"></div>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="#top"
+          ><span class="brand-mark">c9s</span
+          ><span class="brand-label">scaling explained</span></a
+        >
+        <nav class="topnav" aria-label="Page sections">
+          <a href="#results"
+            ><span data-lang="en">Results</span
+            ><span data-lang="de">Ergebnisse</span></a
+          ><a href="#stages"
+            ><span data-lang="en">Startup stages</span
+            ><span data-lang="de">Startphasen</span></a
+          ><a href="#batches"
+            ><span data-lang="en">Batches</span
+            ><span data-lang="de">Batches</span></a
+          ><a href="#controller"
+            ><span data-lang="en">Controller</span
+            ><span data-lang="de">Controller</span></a
+          ><a href="#evidence"
+            ><span data-lang="en">Evidence</span
+            ><span data-lang="de">Messungen</span></a
+          ><a href="#measure"
+            ><span data-lang="en">Measure it</span
+            ><span data-lang="de">Selbst messen</span></a
+          ><a href="#original"
+            ><span data-lang="en">Full guide</span
+            ><span data-lang="de">Original</span></a
+          >
+        </nav>
+        <select
+          class="page-select"
+          id="pageSelect"
+          aria-label="Choose explainer"
+        >
+          <option value="index.html">Direct architecture</option>
+          <option value="persistence-explained.html">Persistence</option>
+          <option value="management-mesh-explained.html">
+            Management mesh
+          </option>
+          <option value="planner-pool-explained.html">Planner pool</option>
+          <option value="scaling-performance-explained.html" selected>
+            Scaling
+          </option>
+        </select>
+        <button
+          class="theme-button"
+          id="langButton"
+          type="button"
+          aria-label="Switch language"
+          title="Sprache wechseln / switch language"
+        >
+          DE
+        </button>
+        <button
+          class="theme-button"
+          id="themeButton"
+          type="button"
+          aria-label="Switch color theme"
+          title="Switch color theme"
+        >
+          ◐
+        </button>
+      </div>
+    </header>
+
+    <main id="top" class="article-page scaling-page">
+      <div class="hero">
+        <span class="eyebrow">Clabernetes · September 2026</span>
+        <h1 data-lang="en">
+          1,000 devices.<br /><span>Where does the time go?</span>
+        </h1>
+        <h1 data-lang="de">
+          1.000 Geräte.<br /><span>Wo bleibt die Zeit?</span>
+        </h1>
+        <p class="hero-lead" data-lang="en">
+          A large topology can have enough worker CPU and memory and still start
+          slowly. Follow the path from a device plan to a ready lab, and see
+          what changed in the measured 1,000-device run.
+        </p>
+        <p class="hero-lead" data-lang="de">
+          Eine große Topologie kann trotz genug Worker-CPU und Arbeitsspeicher
+          langsam starten. Wir folgen dem Weg vom Geräteplan zum fertigen Lab
+          und zeigen, was sich im gemessenen Lauf mit 1.000 Geräten verändert
+          hat.
+        </p>
+        <div class="pill-row">
+          <span class="pill">1,000 BusyBox devices</span
+          ><span class="pill">7 Kubernetes workers</span
+          ><span class="pill">14 planner workers</span
+          ><span class="pill">Dual-stack Calico</span>
+        </div>
+      </div>
+      <section id="results">
+        <div class="section-head">
+          <div class="section-index">01 · Results</div>
+          <div>
+            <h2 data-lang="en">A much shorter wait for the same lab.</h2>
+            <h2 data-lang="de">Dasselbe Lab, deutlich weniger Wartezeit.</h2>
+            <p class="section-intro" data-lang="en">
+              The workers, device image, resource requests and dual-stack
+              network stayed the same. The follow-up reduced repeated controller
+              work and admitted devices in batches.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Worker, Geräte-Image, Ressourcenanforderungen und Dual-Stack-Netz
+              blieben gleich. Der Folgelauf verringerte wiederholte
+              Controller-Arbeit und ließ Geräte in Batches starten.
+            </p>
+          </div>
+        </div>
+        <div class="grid-3">
+          <article class="card">
+            <h3 data-lang="en">13m10s → 5m15s</h3>
+            <h3 data-lang="de">13m10s → 5m15s</h3>
+            <p data-lang="en">
+              Observed Topology readiness. About
+              <strong>60% less startup time</strong> with the combined
+              controller changes and batches of 100.
+            </p>
+            <p data-lang="de">
+              Beobachtete Topology-Bereitschaft. Rund
+              <strong>60 % weniger Startzeit</strong> mit den kombinierten
+              Controller-Änderungen und Batches von 100.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">430s → 4s</h3>
+            <h3 data-lang="de">430s → 4s</h3>
+            <p data-lang="en">
+              Scheduled to sandbox ready, p95. The several-minute tail before
+              containers could start did not recur.
+            </p>
+            <p data-lang="de">
+              Von der Einplanung bis zur bereiten Sandbox, p95. Der zuvor
+              minutenlange Nachlauf vor dem Containerstart trat nicht erneut
+              auf.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">1,000 / 1,000</h3>
+            <h3 data-lang="de">1.000 / 1.000</h3>
+            <p data-lang="en">
+              Every device passed management address, prefix, default-route and
+              neighbor ping checks by IP and hostname.
+            </p>
+            <p data-lang="de">
+              Jedes Gerät bestand die Prüfungen für Management-Adresse, Präfix,
+              Standardroute und Nachbar-Pings per IP und Hostname.
+            </p>
+          </article>
+        </div>
+        <div class="card measurement-chart">
+          <div class="pool-controls">
+            <label for="metric"
+              ><span data-lang="en">Compare a measured milestone</span
+              ><span data-lang="de"
+                >Einen gemessenen Meilenstein vergleichen</span
+              ></label
+            ><select id="metric">
+              <option value="ready">Topology Ready</option>
+              <option value="plans">Last plan applied</option>
+              <option value="pods">Last Pod created</option>
+              <option value="podReady">Last Pod Ready</option>
+              <option value="sandbox">Sandbox p95</option>
+            </select>
+          </div>
+          <div id="measurementChart" aria-live="polite" aria-atomic="true">
+            <div class="measure-row">
+              <div class="measure-label">
+                <span data-lang="en">Earlier image · unrestricted</span
+                ><span data-lang="de">Vorheriges Image · unbegrenzt</span
+                ><strong id="beforeValue">789.9s</strong>
+              </div>
+              <div class="measure-track" aria-hidden="true">
+                <div
+                  id="beforeBar"
+                  class="measure-bar before"
+                  style="width: 100%"
+                ></div>
+              </div>
+            </div>
+            <div class="measure-row">
+              <div class="measure-label">
+                <span data-lang="en">New changes · batch 100</span
+                ><span data-lang="de">Neue Änderungen · Batch 100</span
+                ><strong id="afterValue">314.9s</strong>
+              </div>
+              <div class="measure-track" aria-hidden="true">
+                <div
+                  id="afterBar"
+                  class="measure-bar after"
+                  style="width: 39.9%"
+                ></div>
+              </div>
+            </div>
+            <p class="metric-note" data-lang="en">
+              Observed Topology readiness; network verification is timed
+              separately.
+            </p>
+            <p class="metric-note" data-lang="de">
+              Beobachtete Topology-Bereitschaft; die Netzwerkprüfung wird
+              separat gemessen.
+            </p>
+          </div>
+        </div>
+        <div class="callout" data-lang="en">
+          <strong>This measures the combined changes.</strong> There was no new
+          unrestricted 1,000-device run. The result does not tell us how much
+          came from batching alone, and 100 is not a proven best batch size.
+          These are single sequential runs on one cluster.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Gemessen wurden die kombinierten Änderungen.</strong> Es gab
+          keinen neuen unbegrenzten Lauf mit 1.000 Geräten. Das Ergebnis zeigt
+          weder den Anteil von Batching allein noch eine optimale Batch-Größe.
+          Es sind einzelne aufeinanderfolgende Läufe auf einem Cluster.
+        </div>
+      </section>
+      <section id="stages">
+        <div class="section-head">
+          <div class="section-index">02 · Startup</div>
+          <div>
+            <h2 data-lang="en">A plan is only the first part of startup.</h2>
+            <h2 data-lang="de">Der Plan ist erst der Anfang des Starts.</h2>
+            <p class="section-intro" data-lang="en">
+              Measure the stages separately before changing planner concurrency
+              or worker capacity.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Die Phasen getrennt messen, bevor du Planner-Parallelität oder
+              Worker-Kapazität änderst.
+            </p>
+          </div>
+        </div>
+        <div class="step-list">
+          <div class="step">
+            <div>
+              <b data-lang="en">Plan the device</b
+              ><b data-lang="de">Das Gerät planen</b
+              ><span data-lang="en"
+                >The planner pool writes the device’s build instructions. A
+                cached plan can skip that work.</span
+              ><span data-lang="de"
+                >Der Planner-Pool schreibt die Bauanleitung des Geräts. Ein
+                gecachter Plan kann diese Arbeit ersparen.</span
+              >
+            </div>
+          </div>
+          <div class="step">
+            <div>
+              <b data-lang="en">Create the Kubernetes objects</b
+              ><b data-lang="de">Die Kubernetes-Objekte erzeugen</b
+              ><span data-lang="en"
+                >c9s creates a Deployment. Kubernetes creates its ReplicaSet and
+                Pod. These are separate milestones, and each can wait in a
+                queue.</span
+              ><span data-lang="de"
+                >c9s erzeugt ein Deployment. Kubernetes erzeugt dessen
+                ReplicaSet und Pod. Das sind getrennte Meilensteine; jeder kann
+                in einer Warteschlange warten.</span
+              >
+            </div>
+          </div>
+          <div class="step">
+            <div>
+              <b data-lang="en">Schedule and prepare the Pod</b
+              ><b data-lang="de">Den Pod einplanen und vorbereiten</b
+              ><span data-lang="en"
+                >Kubernetes selects a worker. The kubelet prepares volumes and
+                the runtime sandbox, including CNI networking.
+                <code>PodReadyToStartContainers=True</code> marks that
+                preparation as ready.</span
+              ><span data-lang="de"
+                >Kubernetes wählt einen Worker. Das Kubelet bereitet Volumes und
+                die Runtime-Sandbox einschließlich CNI-Netz vor.
+                <code>PodReadyToStartContainers=True</code> markiert diese
+                Vorbereitung als bereit.</span
+              >
+            </div>
+          </div>
+          <div class="step">
+            <div>
+              <b data-lang="en">Prepare files, boot and connect</b
+              ><b data-lang="de">Dateien vorbereiten, booten und verbinden</b
+              ><span data-lang="en"
+                >The init container called <code>planner</code> prepares an
+                already planned device. Applications and helpers start, then
+                device and connectivity checks determine readiness.</span
+              ><span data-lang="de"
+                >Der Init-Container namens <code>planner</code> bereitet ein
+                bereits geplantes Gerät vor. Anwendungen und Helfer starten;
+                Geräte- und Verbindungsprüfungen bestimmen anschließend die
+                Bereitschaft.</span
+              >
+            </div>
+          </div>
+          <div class="step">
+            <div>
+              <b data-lang="en">Observe the whole lab as Ready</b
+              ><b data-lang="de">Das gesamte Lab als Ready beobachten</b
+              ><span data-lang="en"
+                >Pod Ready, c9s Node Ready and observed Topology Ready are
+                different timestamps. Record all of them, then run the final
+                network checks.</span
+              ><span data-lang="de"
+                >Pod Ready, c9s Node Ready und beobachtetes Topology Ready haben
+                unterschiedliche Zeitstempel. Alle erfassen und anschließend das
+                Netz prüfen.</span
+              >
+            </div>
+          </div>
+        </div>
+        <div class="callout" data-lang="en">
+          <strong>These stages overlap across devices.</strong> Do not add their
+          medians or p95 values. “p95” means 95% of the measured intervals were
+          at or below that value. The scheduled-to-sandbox interval includes
+          more than CNI; use CNI logs to measure allocation separately.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Diese Phasen überlappen zwischen Geräten.</strong> Mediane
+          oder p95-Werte nicht addieren. „p95“ bedeutet: 95 % der gemessenen
+          Intervalle lagen höchstens bei diesem Wert. Die Zeit von Einplanung
+          bis Sandbox umfasst mehr als CNI; die Adressvergabe separat über
+          CNI-Logs messen.
+        </div>
+      </section>
+      <section id="batches">
+        <div class="section-head">
+          <div class="section-index">03 · Batching</div>
+          <div>
+            <h2 data-lang="en">Let devices through in manageable groups.</h2>
+            <h2 data-lang="de">
+              Geräte in überschaubaren Gruppen starten lassen.
+            </h2>
+            <p class="section-intro" data-lang="en">
+              Batching limits the burst through kubelet and network setup. It
+              trades some parallelism for lower peak load.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Batching begrenzt die Lastspitze bei Kubelet und Netzaufbau. Dafür
+              verzichtet es auf einen Teil der Parallelität.
+            </p>
+          </div>
+        </div>
+        <p data-lang="en">
+          Set <code>spec.rollout.batchSize</code> on a Topology. With 1,000
+          independent devices and a size of 100, c9s admits 100, then another
+          100, and so on. Omit it or use <code>0</code> for unrestricted
+          startup.
+        </p>
+        <p data-lang="de">
+          Setze <code>spec.rollout.batchSize</code> an einer Topology. Bei 1.000
+          unabhängigen Geräten und einer Größe von 100 lässt c9s zuerst 100 zu,
+          danach weitere 100 und so weiter. Ohne Angabe oder mit
+          <code>0</code> startet die Topologie unbegrenzt.
+        </p>
+        <pre class="term"><code># Topology spec
+spec:
+  rollout:
+    batchSize: 100</code></pre>
+        <div class="grid-3">
+          <article class="card">
+            <h3 data-lang="en">1 · Describe the whole lab</h3>
+            <h3 data-lang="de">1 · Das ganze Lab beschreiben</h3>
+            <p data-lang="en">
+              All Node, Link and NodeProfile definitions exist first. Held Nodes
+              carry <code>c9s.run/startup-hold</code> and do not start planning
+              yet.
+            </p>
+            <p data-lang="de">
+              Alle Node-, Link- und NodeProfile-Definitionen werden zuerst
+              erzeugt. Zurückgehaltene Nodes tragen
+              <code>c9s.run/startup-hold</code> und beginnen noch nicht mit der
+              Planung.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">2 · Admit 100 workloads</h3>
+            <h3 data-lang="de">2 · 100 Workloads zulassen</h3>
+            <p data-lang="en">
+              The size counts primary workloads (Pods). Containers sharing a
+              network namespace are admitted together. Admission is saved on the
+              Nodes and survives a manager restart.
+            </p>
+            <p data-lang="de">
+              Die Größe zählt primäre Workloads (Pods). Container mit
+              gemeinsamem Netzwerk-Namespace werden zusammen zugelassen. Der
+              Freigabestand steht auf den Nodes und überlebt einen
+              Manager-Neustart.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">3 · Wait for sandbox readiness</h3>
+            <h3 data-lang="de">3 · Auf Sandbox-Bereitschaft warten</h3>
+            <p data-lang="en">
+              The next batch starts when all previously admitted workloads have
+              a Pod with <code>PodReadyToStartContainers=True</code>. Full
+              application and link readiness can follow later.
+            </p>
+            <p data-lang="de">
+              Der nächste Batch startet, wenn alle zuvor zugelassenen Workloads
+              einen Pod mit <code>PodReadyToStartContainers=True</code> haben.
+              Vollständige Anwendungs- und Link-Bereitschaft darf später folgen.
+            </p>
+          </article>
+        </div>
+        <div class="callout" data-lang="en">
+          <strong>Why not wait for full device readiness?</strong> A device may
+          need a peer in a later batch. Waiting for that peer before admitting
+          the later batch could block startup. Topology Ready still requires the
+          normal complete device checks.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong
+            >Warum nicht auf vollständige Gerätebereitschaft warten?</strong
+          >
+          Ein Gerät kann einen Nachbarn aus einem späteren Batch brauchen. Würde
+          dessen Freigabe darauf warten, könnte der Start blockieren. Für
+          Topology Ready gelten weiterhin die vollständigen Geräteprüfungen.
+        </div>
+        <div class="grid-2">
+          <article class="card">
+            <h3 data-lang="en">If the batch stops advancing</h3>
+            <h3 data-lang="de">Wenn der Batch nicht weiterkommt</h3>
+            <p data-lang="en">
+              Inspect the admitted Pods and their Events. An unschedulable Pod,
+              failed sandbox or missing
+              <code>PodReadyToStartContainers</code> condition holds the next
+              batch. Kubernetes must report this condition.
+            </p>
+            <p data-lang="de">
+              Prüfe die zugelassenen Pods und ihre Events. Ein nicht
+              einplanbarer Pod, eine fehlgeschlagene Sandbox oder eine fehlende
+              <code>PodReadyToStartContainers</code>-Bedingung hält den nächsten
+              Batch auf. Kubernetes muss diese Bedingung melden.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">What the limit covers</h3>
+            <h3 data-lang="de">Wofür das Limit gilt</h3>
+            <p data-lang="en">
+              It applies per Topology to new workloads, including newly added or
+              recreated Node resources. Independently authored Nodes, rolling
+              changes and replacement Pods for already admitted Nodes are
+              outside this pacing. Multiple labs can still create a larger
+              combined burst.
+            </p>
+            <p data-lang="de">
+              Es gilt pro Topology für neue Workloads, auch für neu hinzugefügte
+              oder neu erstellte Node-Ressourcen. Unabhängig erstellte Nodes,
+              Rolling-Änderungen und Ersatz-Pods bereits zugelassener Nodes
+              werden dadurch nicht getaktet. Mehrere Labs können zusammen
+              weiterhin eine größere Lastspitze erzeugen.
+            </p>
+          </article>
+        </div>
+        <p data-lang="en">
+          Changing the size affects subsequent batches. It does not stop an
+          admitted batch. Setting it to <code>0</code> releases all remaining
+          held Nodes. Keep dual-stack enabled when comparing sizes.
+        </p>
+        <p data-lang="de">
+          Eine neue Größe wirkt auf folgende Batches. Bereits zugelassene
+          Batches werden nicht angehalten. <code>0</code> gibt alle
+          verbleibenden zurückgehaltenen Nodes frei. Für Größenvergleiche
+          Dual-Stack aktiviert lassen.
+        </p>
+      </section>
+      <section id="controller">
+        <div class="section-head">
+          <div class="section-index">04 · Controller</div>
+          <div>
+            <h2 data-lang="en">Less repeated work while devices start.</h2>
+            <h2 data-lang="de">
+              Weniger wiederholte Arbeit während des Starts.
+            </h2>
+            <p class="section-intro" data-lang="en">
+              Many status changes used to send the same device through the full
+              desired-state path again. The follow-up separates observation from
+              that work.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Viele Statusänderungen schickten dasselbe Gerät erneut durch den
+              vollständigen Sollzustandsabgleich. Der Folgestand trennt die
+              Beobachtung von dieser Arbeit.
+            </p>
+          </div>
+        </div>
+        <div class="grid-2">
+          <article class="card">
+            <h3 data-lang="en">Reuse a successful reconciliation</h3>
+            <h3 data-lang="de">Einen erfolgreichen Abgleich wiederverwenden</h3>
+            <p data-lang="en">
+              A readiness update can refresh status without repeating full
+              planning, namespace inventory and authoritative entropy
+              validation. Topology status can be aggregated without recompiling
+              the lab.
+            </p>
+            <p data-lang="de">
+              Ein Bereitschaftsupdate kann den Status aktualisieren, ohne
+              vollständige Planung, Namespace-Inventur und autoritative
+              Entropieprüfung zu wiederholen. Der Topology-Status kann ohne
+              erneutes Übersetzen des Labs zusammengeführt werden.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">Find references directly</h3>
+            <h3 data-lang="de">Referenzen direkt finden</h3>
+            <p data-lang="en">
+              ConfigMap and Secret references use a Node index. The controller
+              can find affected Nodes without scanning every Node for each
+              reference update.
+            </p>
+            <p data-lang="de">
+              ConfigMap- und Secret-Referenzen nutzen einen Node-Index. Der
+              Controller findet betroffene Nodes, ohne bei jedem Referenzupdate
+              alle Nodes durchsuchen zu müssen.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">Combine peer-directory updates</h3>
+            <h3 data-lang="de">Peer-Verzeichnis-Updates zusammenfassen</h3>
+            <p data-lang="en">
+              A separate namespace queue collects changes for 250ms and writes
+              only changed shards. This reduces repeated updates as devices and
+              Pod addresses appear.
+            </p>
+            <p data-lang="de">
+              Eine separate Namespace-Warteschlange sammelt Änderungen für 250
+              ms und schreibt nur geänderte Shards. Das reduziert wiederholte
+              Updates, wenn Geräte und Pod-Adressen hinzukommen.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">Write fewer routine Events</h3>
+            <h3 data-lang="de">Weniger Routine-Events schreiben</h3>
+            <p data-lang="en">
+              Intermediate successful milestones remain in Node status without
+              each creating an Event. Readiness, failures and lifecycle
+              diagnostics stay available. Cleanup also skips a namespace Pod
+              scan when no superseded owned revision exists.
+            </p>
+            <p data-lang="de">
+              Erfolgreiche Zwischenstände bleiben im Node-Status, ohne jeweils
+              ein Event zu erzeugen. Bereitschaft, Fehler und
+              Lifecycle-Diagnosen bleiben verfügbar. Beim Aufräumen entfällt
+              außerdem die Pod-Suche im Namespace, wenn keine überholte eigene
+              Revision existiert.
+            </p>
+          </article>
+        </div>
+        <div class="callout" data-lang="en">
+          <strong>Validation still runs when it matters.</strong> Input changes,
+          owned-resource drift and periodic full validation invalidate reuse. A
+          manager restart rebuilds it. Full reconciliation retains identity and
+          ownership checks. Planning and observations still share Node reconcile
+          workers; per-device objects remain.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Die maßgeblichen Prüfungen bleiben bestehen.</strong>
+          Geänderte Eingaben, Abweichungen eigener Ressourcen und periodische
+          Vollprüfungen heben die Wiederverwendung auf. Nach einem
+          Manager-Neustart wird sie neu aufgebaut. Vollständige Abgleiche prüfen
+          weiterhin Identität und Eigentümerschaft. Planung und Beobachtungen
+          teilen sich weiterhin Node-Reconcile-Worker; die Objekte pro Gerät
+          bleiben erhalten.
+        </div>
+      </section>
+      <section id="evidence">
+        <div class="section-head">
+          <div class="section-index">05 · Evidence</div>
+          <div>
+            <h2 data-lang="en">
+              What the measurements do and do not establish.
+            </h2>
+            <h2 data-lang="de">
+              Was die Messungen belegen und was offenbleibt.
+            </h2>
+            <p class="section-intro" data-lang="en">
+              The original guide retains the baseline runs, the 50-device API
+              investigation, the smaller follow-ups and the final 1,000-device
+              run. Read them together.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Der Originalleitfaden enthält die Referenzläufe, die
+              API-Untersuchung mit 50 Geräten, kleinere Folgeläufe und den
+              abschließenden 1.000-Geräte-Lauf. Sie gehören zusammen.
+            </p>
+          </div>
+        </div>
+        <h3 data-lang="en">What the smaller runs tell us</h3>
+        <h3 data-lang="de">Was die kleineren Läufe zeigen</h3>
+        <div
+          class="table-wrap"
+          tabindex="0"
+          role="region"
+          aria-label="Small run comparison"
+        >
+          <table>
+            <thead>
+              <tr>
+                <th>
+                  <span data-lang="en">Devices / batch</span
+                  ><span data-lang="de">Geräte / Batch</span>
+                </th>
+                <th>Topology Ready</th>
+                <th>Sandbox median / p95 / max</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  50 / <span data-lang="en">unrestricted</span
+                  ><span data-lang="de">unbegrenzt</span>
+                </td>
+                <td>34.6s</td>
+                <td>1s / 2s / 3s</td>
+              </tr>
+              <tr>
+                <td>
+                  200 / <span data-lang="en">unrestricted</span
+                  ><span data-lang="de">unbegrenzt</span>
+                </td>
+                <td>66.5s</td>
+                <td>2s / 4s / 5s</td>
+              </tr>
+              <tr>
+                <td>200 / 100</td>
+                <td>75.0s</td>
+                <td>2s / 3s / 4s</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p data-lang="en">
+          At 200 devices, unrestricted startup was faster. Batching is a
+          pressure-control option, not a guaranteed speed improvement. In the
+          50-device comparison, successful Secret GETs fell from 1,183 to 351
+          and controller Event occurrences from 458 to 156; these counters show
+          less work but do not isolate its effect on elapsed time.
+        </p>
+        <p data-lang="de">
+          Bei 200 Geräten war der unbegrenzte Start schneller. Batching steuert
+          Lastspitzen, garantiert aber keinen schnelleren Start. Im
+          50-Geräte-Vergleich sanken erfolgreiche Secret-GETs von 1.183 auf 351
+          und Controller-Event-Vorkommnisse von 458 auf 156. Diese Zähler zeigen
+          weniger Arbeit, isolieren aber nicht deren Einfluss auf die
+          Gesamtdauer.
+        </p>
+        <div class="grid-2">
+          <article class="card">
+            <h3 data-lang="en">Calico’s queue became cheaper</h3>
+            <h3 data-lang="de">Calicos Warteschlange wurde günstiger</h3>
+            <p data-lang="en">
+              Calico serializes address allocation with a lock on each worker.
+              In the earlier c9s run, holding it took 5.02–5.17s on sampled
+              workers. The follow-up averaged 0.38–0.48s. Slow datastore
+              operations can keep that lock occupied and make every Pod behind
+              it wait.
+            </p>
+            <p data-lang="de">
+              Calico vergibt Adressen auf jedem Worker unter einer gemeinsamen
+              Sperre. Im früheren c9s-Lauf wurde sie auf den untersuchten
+              Workern im Mittel 5,02–5,17 s gehalten. Im Folgelauf waren es
+              0,38–0,48 s. Langsame Datenspeicherzugriffe können die Sperre
+              lange belegen und nachfolgende Pods warten lassen.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">Plain Pods are a useful comparison</h3>
+            <h3 data-lang="de">Einfache Pods helfen beim Vergleich</h3>
+            <p data-lang="en">
+              Plain BusyBox Pods replayed the reference’s placement and roughly
+              340-second arrival schedule. Their last Pods were Ready at 5m39s /
+              5m40s, with sandbox p95 of 2s / 1s for dual-stack / IPv4-only.
+              Their totals were constrained by the replay schedule, and their
+              readiness checks differ from c9s.
+            </p>
+            <p data-lang="de">
+              Einfache BusyBox-Pods wiederholten Worker-Verteilung und den rund
+              340-sekündigen Ankunftsplan der Referenz. Die letzten Pods waren
+              nach 5m39s / 5m40s Ready; Sandbox-p95 lag bei 2s / 1s für
+              Dual-Stack / nur IPv4. Die Gesamtdauer war durch den Ankunftsplan
+              begrenzt, und ihre Bereitschaftsprüfungen unterscheiden sich von
+              c9s.
+            </p>
+          </article>
+        </div>
+        <p data-lang="en">
+          The completed baselines show that the per-worker IPAM lock is not
+          inherently a five-second-per-Pod limit. They point to the interaction
+          between the c9s workload and the control plane. They do not isolate
+          one c9s function or prove a provider defect. The IPv4-only c9s run was
+          canceled before full readiness, so it gives no completed end-to-end
+          speedup result.
+        </p>
+        <p data-lang="de">
+          Die abgeschlossenen Vergleichsläufe zeigen: Die IPAM-Sperre erzwingt
+          nicht grundsätzlich fünf Sekunden pro Pod. Die Ergebnisse weisen auf
+          das Zusammenspiel von c9s-Last und Control Plane hin. Sie isolieren
+          weder eine einzelne c9s-Funktion noch belegen sie einen
+          Provider-Fehler. Der c9s-Lauf nur mit IPv4 wurde vor vollständiger
+          Bereitschaft abgebrochen und liefert deshalb keinen abgeschlossenen
+          Nachweis einer kürzeren Gesamtstartzeit.
+        </p>
+        <h3 data-lang="en">Where the follow-up still spends time</h3>
+        <h3 data-lang="de">Wo der Folgelauf weiterhin Zeit braucht</h3>
+        <p data-lang="en">
+          Deployment → ReplicaSet creation took 12s at the median and 22s at
+          p95. ReplicaSet → Pod took 0s at the median and at most 2s. Each batch
+          repeatedly paid that workload-creation delay. The next batch followed
+          the previous batch’s last sandbox within 0–1s. The last-plan time of
+          267s includes waiting for earlier batches; it is not 267s of planner
+          execution.
+        </p>
+        <p data-lang="de">
+          Deployment → ReplicaSet dauerte im Median 12 s und bei p95 22 s.
+          ReplicaSet → Pod dauerte im Median 0 s und höchstens 2 s. Jeder Batch
+          durchlief diese Wartezeit der Workload-Erzeugung erneut. Der nächste
+          Batch folgte der letzten Sandbox des vorherigen Batches innerhalb von
+          0–1 s. Die 267 s bis zum letzten Plan enthalten das Warten auf frühere
+          Batches; sie sind keine reine Planner-Laufzeit.
+        </p>
+        <div class="callout" data-lang="en">
+          <strong>The next useful comparison:</strong> measure the
+          Deployment-controller delay and compare admission sizes. These results
+          do not support simply adding worker CPU, raising <code>maxPods</code>,
+          increasing planners or changing Calico as the next fix.
+          <code>maxPods</code> controls capacity per worker, not IPAM
+          concurrency.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Der nächste hilfreiche Vergleich:</strong> die Verzögerung
+          beim Deployment-Controller messen und verschiedene Batch-Größen
+          vergleichen. Die Ergebnisse stützen zusätzliche Worker-CPU, ein
+          höheres <code>maxPods</code>, mehr Planner oder Calico-Änderungen
+          nicht als nächsten Lösungsansatz. <code>maxPods</code> begrenzt die
+          Pod-Anzahl pro Worker, nicht die IPAM-Parallelität.
+        </div>
+        <p data-lang="en">
+          The final 1,000-device checks covered 1,000 directed neighbor pairs,
+          including 602 across workers; this was not an all-pairs test.
+          Verification took another 69.7s outside the startup timing. Nine
+          mount-failure occurrences on four Pods and startup-probe warnings
+          recovered. See the original guide for image digests, sampling
+          differences, capture windows and all measurements.
+        </p>
+        <p data-lang="de">
+          Die abschließenden Prüfungen umfassten 1.000 gerichtete Nachbarpaare,
+          davon 602 zwischen Workern; es war kein Test aller möglichen Paare.
+          Die Prüfung dauerte weitere 69,7 s außerhalb der Startzeitmessung.
+          Neun Mount-Fehlervorkommnisse auf vier Pods und
+          Startup-Probe-Warnungen erholten sich. Image-Digests, Unterschiede der
+          Stichproben, Messfenster und alle Werte stehen im Originalleitfaden.
+        </p>
+      </section>
+      <section id="measure">
+        <div class="section-head">
+          <div class="section-index">06 · Diagnostics</div>
+          <div>
+            <h2 data-lang="en">Record the wait before tuning the limit.</h2>
+            <h2 data-lang="de">
+              Erst die Wartezeit erfassen, dann das Limit ändern.
+            </h2>
+            <p class="section-intro" data-lang="en">
+              Keep enough evidence to tell planning, Kubernetes workload
+              creation, network setup and device readiness apart.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Genug Belege aufzeichnen, um Planung,
+              Kubernetes-Workload-Erzeugung, Netzaufbau und Gerätebereitschaft
+              auseinanderzuhalten.
+            </p>
+          </div>
+        </div>
+        <div class="grid-2">
+          <article class="card">
+            <h3 data-lang="en">Keep comparable inputs</h3>
+            <h3 data-lang="de">Vergleichbare Eingaben beibehalten</h3>
+            <p data-lang="en">
+              Save the topology, image identifiers, worker placement, resource
+              requests, IP families and raw timestamps. Use server-relative
+              timestamps for Kubernetes objects and a monotonic clock for local
+              observations.
+            </p>
+            <p data-lang="de">
+              Topologie, Image-Kennungen, Worker-Verteilung,
+              Ressourcenanforderungen, IP-Familien und rohe Zeitstempel sichern.
+              Für Kubernetes-Objekte serverrelative Zeitstempel nutzen, für
+              lokale Beobachtungen eine monotone Uhr.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">Observe the controller too</h3>
+            <h3 data-lang="de">Auch den Controller beobachten</h3>
+            <p data-lang="en">
+              Set Helm value <code>manager.diagnostics=true</code> during an
+              investigation. Metrics use loopback port 9090 and Go pprof uses
+              6060, with sampled block/mutex profiling. Both are disabled by
+              default and have no Service.
+            </p>
+            <p data-lang="de">
+              Für eine Untersuchung den Helm-Wert
+              <code>manager.diagnostics=true</code> setzen. Metriken liegen auf
+              Loopback-Port 9090, Go pprof auf 6060, mit gesampelten
+              Block-/Mutex-Profilen. Beides ist standardmäßig deaktiviert und
+              hat keinen Service.
+            </p>
+          </article>
+        </div>
+        <pre
+          class="term"
+        ><code>kubectl -n YOUR_C9S_NAMESPACE port-forward pod/YOUR_ACTIVE_MANAGER_POD \
+  9090:9090 6060:6060
+
+# In another terminal:
+curl -fsS http://127.0.0.1:9090/metrics &gt; manager-metrics.txt
+curl -fsS 'http://127.0.0.1:6060/debug/pprof/profile?seconds=30' &gt; manager-cpu.pprof
+go tool pprof manager-cpu.pprof</code></pre>
+        <p data-lang="en">
+          Correlate queue and reconcile metrics with API/etcd latency, CNI logs
+          and Pod conditions. A lower request count alone does not prove which
+          stage became faster. Polling can observe Ready later than the actual
+          condition transition; do not mix unsynchronized client and server
+          clocks.
+        </p>
+        <p data-lang="de">
+          Warteschlangen- und Reconcile-Metriken mit API-/etcd-Latenz, CNI-Logs
+          und Pod-Bedingungen abgleichen. Weniger Anfragen allein beweisen
+          nicht, welche Phase schneller wurde. Polling kann Ready später sehen
+          als den tatsächlichen Zustandswechsel; nicht synchronisierte Client-
+          und Serveruhren nicht vermischen.
+        </p>
+        <p data-lang="en">
+          For a paced plain-Pod comparison, use
+          <code>hack/benchmark_pod_startup.py</code> from the clabernetes
+          checkout. The full guide below includes the export commands, input
+          requirements, cleanup instructions and limits of that comparison.
+        </p>
+        <p data-lang="de">
+          Für einen zeitlich nachgebildeten Vergleich mit einfachen Pods dient
+          <code>hack/benchmark_pod_startup.py</code> im clabernetes-Checkout.
+          Der vollständige Leitfaden unten enthält Exportbefehle,
+          Eingabeanforderungen, Aufräumschritte und Grenzen des Vergleichs.
+        </p>
+      </section>
+      <section id="original">
+        <div class="section-head">
+          <div class="section-index">07 · Source</div>
+          <div>
+            <h2 data-lang="en">The full guide, in its original wording.</h2>
+            <h2 data-lang="de">
+              Der vollständige Leitfaden im Originalwortlaut.
+            </h2>
+            <p class="section-intro" data-lang="en">
+              Open this for the exact commands, all measured values, image
+              identifiers, limitations and local evidence paths.
+            </p>
+            <p class="section-intro" data-lang="de">
+              Hier stehen die exakten Befehle, alle Messwerte, Image-Kennungen,
+              Einschränkungen und lokalen Belegpfade.
+            </p>
+          </div>
+        </div>
+        <details class="source-guide">
+          <summary>
+            <span data-lang="en"
+              >Read the complete original guide (English)</span
+            ><span data-lang="de"
+              >Vollständigen Originalleitfaden lesen (Englisch)</span
+            >
+          </summary>
+          <article class="source-content" lang="en">
+            <h3>Measuring large topology startup</h3>
+            <p>
+              A large topology can have enough worker CPU and memory and still
+              start slowly. Measure the stages separately before changing
+              planner concurrency or worker capacity.
+            </p>
+            <h3>Limit startup pressure with batches</h3>
+            <p>
+              Topology startup can release new device workloads in increments:
+            </p>
+            <pre
+              class="term"
+            ><code class="language-yaml">apiVersion: c9s.run/v1alpha1
+kind: Topology
+metadata:
+  name: batched-lab
+spec:
+  rollout:
+    batchSize: 100
+  definition:
+    containerlab: |
+      name: batched-lab
+      topology:
+        nodes:
+          device1:
+            kind: linux
+            image: busybox:1.37
+</code></pre>
+            <p>
+              With 1,000 independent devices, this admits 100, then another 100,
+              and so on. <code>batchSize</code> counts primary workloads (Pods);
+              containers sharing a network namespace are admitted together. Omit
+              the setting or set it to <code>0</code> for unrestricted startup.
+            </p>
+            <p>
+              All Node, Link, and NodeProfile definitions are created first so
+              address allocation and link resolution see the complete lab.
+              Unadmitted Nodes carry the controller-owned
+              <code>c9s.run/startup-hold</code> annotation and do not start
+              planning. Admission is persisted on the Nodes, so a manager
+              restart resumes the batch already in progress.
+            </p>
+            <p>
+              The next batch starts after all previously admitted workloads have
+              a Pod reporting <code>PodReadyToStartContainers=True</code>. This
+              limits the burst through kubelet and CNI setup. It deliberately
+              does not wait for full application/link readiness, which can
+              depend on devices in later batches. Topology readiness still
+              requires the normal complete device readiness checks. Kubernetes
+              must report <code>PodReadyToStartContainers</code>; an
+              unschedulable Pod, failed sandbox, or unavailable condition holds
+              subsequent batches. Inspect the admitted Pods and their Events to
+              diagnose a stalled batch.
+            </p>
+            <p>
+              This policy controls new workloads emitted by a Topology,
+              including newly added or recreated Node resources. It does not
+              pace rolling changes or replacement Pods for already admitted
+              Nodes, and it does not apply to independently authored Nodes.
+              Changing the size affects subsequent batches; it does not stop a
+              batch already admitted. Setting the size to
+              <code>0</code> releases all remaining held Nodes. The limit is per
+              Topology, so simultaneous labs can still create a larger combined
+              burst.
+            </p>
+            <p>
+              Batching trades some parallelism for lower peak load. The value
+              <code>100</code> is a starting point for measurement, not a
+              demonstrated optimum. The combined changes improved the
+              1,000-device run below; their individual contributions have not
+              been isolated. Keep dual-stack enabled when comparing batch sizes.
+            </p>
+            <h3>Controller work and diagnostics</h3>
+            <p>
+              The controller retains a successful desired-state reconciliation
+              for status-only updates. Node observations refresh device status
+              without repeating planning, full namespace inventory, or
+              authoritative entropy validation. Topology observations aggregate
+              child status without recompiling the definition and rechecking
+              every child's ownership. Input changes, owned-resource drift, and
+              periodic full validation invalidate this reuse; a manager restart
+              rebuilds it. Full reconciliation retains the existing
+              authoritative identity and ownership checks.
+            </p>
+            <p>
+              ConfigMap/Secret references use a Node index. Peer-directory
+              updates run on an independent namespace queue with a 250ms
+              coalescing delay and only write changed shards. Intermediate
+              successful condition milestones remain in Node status but no
+              longer each create an Event. Readiness, failures, and lifecycle
+              diagnostics remain available. Planning and Node observations still
+              share Node reconcile workers; these changes do not introduce a
+              separate planning scheduler or remove per-device objects.
+            </p>
+            <p>
+              For an investigation, set the Helm value
+              <code>manager.diagnostics=true</code>. This enables
+              controller-runtime metrics on loopback port 9090 and Go pprof on
+              loopback port 6060, with sampled block and mutex profiling. Both
+              are disabled by default and have no Service. Forward ports from
+              the active manager Pod:
+            </p>
+            <pre
+              class="term"
+            ><code class="language-bash">kubectl -n YOUR_C9S_NAMESPACE port-forward pod/YOUR_ACTIVE_MANAGER_POD \
+  9090:9090 6060:6060
+</code></pre>
+            <p>In another terminal, capture metrics and a short CPU profile:</p>
+            <pre
+              class="term"
+            ><code class="language-bash">curl -fsS http://127.0.0.1:9090/metrics &gt; manager-metrics.txt
+curl -fsS 'http://127.0.0.1:6060/debug/pprof/profile?seconds=30' &gt; manager-cpu.pprof
+go tool pprof manager-cpu.pprof
+</code></pre>
+            <p>
+              Correlate controller queue/reconcile metrics and profiles with
+              API/etcd latency and the Pod milestones below. A reduced request
+              count alone does not establish which stage became faster. The
+              original measurements below predate these changes; the follow-up
+              section identifies the optimized images separately.
+            </p>
+            <h3>Record distinct milestones</h3>
+            <p>
+              For each run, retain the topology, image identifiers,
+              configuration, and raw timestamps. Record at least:
+            </p>
+            <ul>
+              <li>Submission through publication of all planner results.</li>
+              <li>Creation of the last Deployment, ReplicaSet, and Pod.</li>
+              <li>
+                Pod creation through the <code>PodScheduled</code> condition.
+              </li>
+              <li>
+                <code>PodScheduled</code> through
+                <code>PodReadyToStartContainers</code>.
+              </li>
+              <li>
+                Execution of the preparation init container and application
+                startup.
+              </li>
+              <li>
+                Actual Pod Ready timestamps, observed Topology readiness, and
+                final network checks.
+              </li>
+            </ul>
+            <p>
+              The init container named <code>planner</code> prepares an already
+              planned device. Its execution time is separate from the
+              planner-pool sessions that produce device plans.
+            </p>
+            <p>
+              <code>PodReadyToStartContainers</code> covers preparation before
+              application containers can start. The interval from scheduling
+              includes kubelet admission, volume preparation, and runtime
+              sandbox/network setup. It is not a pure CNI timer. Use CNI logs to
+              identify network allocation time independently.
+            </p>
+            <p>
+              Use server timestamps relative to a server-created object for
+              object milestones. Use a monotonic clock for locally observed
+              elapsed time. Do not subtract timestamps from unsynchronized
+              client and server clocks. Polling and API response delays can make
+              observation substantially later than the actual condition
+              transition.
+            </p>
+            <p>
+              These stages overlap across devices. Their percentiles must not be
+              added together.
+            </p>
+            <h3>Compare equivalent arrival schedules</h3>
+            <p>
+              The diagnostic helper
+              <code>hack/benchmark_pod_startup.py</code> creates plain BusyBox
+              Pods using the worker placement and Pod creation schedule from a
+              recorded c9s run:
+            </p>
+            <pre
+              class="term"
+            ><code class="language-bash">python3 hack/benchmark_pod_startup.py \
+  --context YOUR_CONTEXT \
+  --namespace c9s-ipam-plain-dual \
+  --source /path/to/recorded-c9s-run \
+  --output build/benchmarks/plain-dual \
+  --ip-family dual
+</code></pre>
+            <p>
+              The source directory must contain <code>final-pods.json</code> and
+              <code>topology-ready.json</code> from a 1,000-device run. The
+              output directory must be empty and the namespace must not exist.
+              The helper creates resources in the explicitly selected context
+              and retains them for inspection; delete its dedicated namespace
+              when finished.
+            </p>
+            <p>
+              After the source topology is fully Ready, export the device Pod
+              array (not the outer Kubernetes List) and the Topology object:
+            </p>
+            <pre
+              class="term"
+            ><code class="language-bash">mkdir -p recorded-c9s-run
+kubectl --context YOUR_CONTEXT -n YOUR_LAB get pods \
+  -l c9s.run/direct-workload -o json | jq '.items' \
+  &gt; recorded-c9s-run/final-pods.json
+kubectl --context YOUR_CONTEXT -n YOUR_LAB get topology YOUR_TOPOLOGY -o json \
+  &gt; recorded-c9s-run/topology-ready.json
+</code></pre>
+            <p>
+              Each plain Pod requests 10m CPU and 64Mi memory, uses the source
+              BusyBox image, and selects the same Kubernetes worker as the
+              corresponding c9s device. Creation is paced according to the
+              original server-side Pod timestamps. Arrival error is recorded so
+              a delayed submitter cannot silently invalidate the comparison.
+            </p>
+            <p>
+              The plain Pods have no c9s helper/init containers, plan
+              ConfigMaps, probe Secrets, service-account token mounts, or
+              readiness probes. This measures Kubernetes/CNI startup without the
+              c9s workload and its supporting resources. It does not isolate the
+              controller's contribution from helper and volume overhead. Compare
+              sandbox timing and IPAM allocation cost; plain-Pod Ready timing is
+              not equivalent to the full c9s readiness contract.
+            </p>
+            <p>
+              The helper records API metrics, worker state, controller-manager
+              leases, Pod conditions, events, Calico CNI logs, and per-device
+              neighbor connectivity. The <code>--ip-family</code> argument
+              verifies the observed addresses; it does not reconfigure Calico.
+              IPv4-only experiments require a separately prepared cluster
+              configuration. IPAM analysis selects allocation processes for the
+              test namespace, excluding address-release calls that use the same
+              lock. Raw metrics and logs stay in the ignored
+              <code>build/benchmarks/</code> directory and should be reviewed
+              before sharing.
+            </p>
+            <h3>Calico allocation and Pod density</h3>
+            <p>
+              Calico IPAM serializes allocation on each worker with a host-wide
+              lock. An allocation can involve several Kubernetes datastore
+              operations. A dual-stack Pod requires both address families, even
+              when the c9s management network uses only IPv4.
+            </p>
+            <p>
+              Distinguish time waiting for the IPAM lock from time holding it.
+              Long waits with a nearly continuously occupied lock identify an
+              allocation throughput bottleneck. More planner workers do not
+              increase the number of allocation operations that can hold that
+              worker's lock simultaneously.
+            </p>
+            <p>
+              <code>maxPods</code> is the maximum number of Pods per Kubernetes
+              worker. It is not an IPAM concurrency setting. Raising it can make
+              a topology schedulable while increasing the number of startup
+              requests sharing each worker's allocation queue.
+            </p>
+            <p>
+              Calico supports the <code>assign_ipv4</code> and
+              <code>assign_ipv6</code> CNI IPAM settings. Test an IPv4-only
+              configuration only when compatible with the cluster's networking
+              needs and management mechanism. Changing assignment for new Pods
+              does not convert existing Pods, disable the node's IPv6 routing,
+              or remove IPv6 pools.
+            </p>
+            <p>
+              Do not infer that removing the IPAM lock will improve startup. Its
+              purpose is to reduce competing datastore operations. Likewise,
+              <code>host-local</code> IPAM is an architectural alternative
+              requiring suitable per-worker Pod CIDRs and routing, not a drop-in
+              performance flag for every managed cluster.
+            </p>
+            <h3>September 2026 experiment</h3>
+            <p>
+              The recorded experiment uses seven Kubernetes workers, 1,000
+              BusyBox devices, 14 planner workers, 10m CPU and 64Mi application
+              requests, and no PVCs. The c9s lab uses a single
+              <code>172.30.0.0/22</code> management network. Worker
+              <code>maxPods</code> is 220. Each worker reports 64 CPUs and
+              approximately 189Gi memory. The software is Kubernetes v1.37.0,
+              containerd v2.3.4, and Calico v3.32.1. The c9s image is based on
+              <code>0efafb2d</code> plus the local API-load optimizations,
+              tagged <code>local-0efafb2d-dirty-8a09e2fb5c19</code>; its manager
+              digest is
+              <code
+                >sha256:41c55a6eb756ab7d28bd014fe410e02e66b67dd1f5cf6dfc067654c843d2c220</code
+              >.
+            </p>
+            <p>
+              The comparison uses an earlier optimized c9s dual-stack run, plain
+              dual-stack Pods with its arrival schedule, and the same plain
+              replay with IPv4-only allocation. An IPv4-only c9s run was
+              canceled at the user's request before full readiness. Images are
+              warm, and previous test namespaces were removed before each timed
+              run.
+            </p>
+            <div
+              class="table-wrap"
+              tabindex="0"
+              role="region"
+              aria-label="Original guide data table"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th>Measurement</th>
+                    <th>c9s dual-stack reference</th>
+                    <th>Plain dual-stack</th>
+                    <th>Plain IPv4-only</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Last Pod Ready, server-relative</td>
+                    <td>12m54s</td>
+                    <td>5m39s</td>
+                    <td>5m40s</td>
+                  </tr>
+                  <tr>
+                    <td>Scheduled to sandbox ready, median / p95</td>
+                    <td>123s / 430s</td>
+                    <td>1s / 2s</td>
+                    <td>1s / 1s</td>
+                  </tr>
+                  <tr>
+                    <td>Mean IPAM lock hold, range across sampled workers</td>
+                    <td>5.02–5.17s</td>
+                    <td>0.21–0.25s</td>
+                    <td>0.085–0.095s</td>
+                  </tr>
+                  <tr>
+                    <td>IPAM block API GET / PUT mean</td>
+                    <td>175ms / 207ms</td>
+                    <td>5.2ms / 15.2ms</td>
+                    <td>4.4ms / 13.4ms</td>
+                  </tr>
+                  <tr>
+                    <td>API queue-full rejections during capture</td>
+                    <td>296</td>
+                    <td>0</td>
+                    <td>0</td>
+                  </tr>
+                  <tr>
+                    <td>Device neighbor checks passed</td>
+                    <td>1,000/1,000</td>
+                    <td>1,000/1,000</td>
+                    <td>1,000/1,000</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              The plain runs deliberately spread Pod creation over the
+              reference's approximately 340-second schedule. Their five-minute
+              totals are therefore an input constraint, not a measurement of the
+              cluster's fastest possible 1,000-Pod startup. Arrival offset error
+              was -2 to -1 seconds for dual-stack and -1 to +1 seconds for
+              IPv4-only. Pod condition timestamps have one-second resolution.
+              The reference IPAM sample covers 282 allocations on two workers;
+              each plain run covers all 1,000 allocations on all seven workers.
+              All plain Pods had the expected unique address families, and both
+              plain runs checked 439 cross-worker neighbor pairs. The dual-stack
+              connectivity checks exercised both IPv4 and IPv6.
+            </p>
+            <p>
+              The reference completed planning at 5m38s and created its last Pod
+              at 5m40s. Topology readiness was observed at 13m10s; a complete
+              resource snapshot confirmed readiness at 13m22s. It recorded 79
+              FailedMount occurrences across 27 Pods, mostly ConfigMap and
+              Secret cache synchronization timeouts. These indicate delayed
+              kubelet/API synchronization; they do not establish missing
+              configuration data.
+            </p>
+            <p>
+              In the canceled IPv4-only c9s run, the last complete snapshot at
+              3m41s contained 734 planned devices, 707 Pods, 555 Ready Pods, and
+              118 Ready c9s Nodes. Around three minutes, it had 470 Ready Pods
+              versus 320 in the reference, but only 630 plans versus 677 and 98
+              Ready c9s Nodes versus 116. These are nearby polling observations,
+              not simultaneous snapshots. There is no final planning,
+              full-topology startup, or complete connectivity result for this
+              canceled run.
+            </p>
+            <p>
+              The completed baselines show that Calico's per-worker lock is not
+              inherently a five-second-per-Pod limit on this cluster. Allocation
+              and datastore requests were much cheaper without the c9s workload
+              and its supporting resources. IPv4-only allocation reduced that
+              already small cost further. Under the c9s reference workload, slow
+              datastore operations held the allocation lock and amplified the
+              queue. This implicates the interaction between c9s's API/object
+              workload and the cluster control plane; it does not isolate a
+              specific c9s function or prove a provider-side defect. More worker
+              CPU or a larger <code>maxPods</code> ceiling is not supported as
+              the next fix by these results.
+            </p>
+            <p>
+              The next investigation should measure and reduce c9s API/object
+              churn and the delay between Pod readiness and Node/Topology
+              readiness, while checking API/etcd latency under that load.
+              IPv4-only allocation is a possible secondary optimization; this
+              experiment did not establish an end-to-end speedup for c9s. These
+              are single sequential runs, not randomized repeated trials. The
+              first plain run also overlapped with trailing CNI release calls
+              for approximately its first 30 seconds despite the previous
+              namespace having disappeared. Allocation statistics exclude those
+              calls.
+            </p>
+            <p>
+              Measurements, snapshots, cancellation details, and rollback logs
+              are retained locally under
+              <code>build/benchmarks/2026-09-21-calico-ipam/</code>. The
+              reproducible plain-Pod helper is
+              <code>hack/benchmark_pod_startup.py</code>. These scaling
+              experiments are separate from the repository e2e suite; the broad
+              suite was not rerun for this investigation.
+            </p>
+            <p>
+              The IPv4 experiment changes only the Calico CNI IPAM
+              <code>assign_ipv6</code> setting for new Pods. On this
+              manifest-managed cluster, the existing
+              <code>calico-node</code> DaemonSet's
+              <code>install-cni</code> container can select the provider's
+              <code>cni_network_config_ipv4_only</code> ConfigMap key instead of
+              <code>cni_network_config_dual_stack</code>. This is a temporary
+              experiment, not a portable installation recipe or a claim that the
+              provider supports this as a permanent override. IPv6 pools, node
+              routing settings, and the IPAM lock are preserved.
+            </p>
+            <p>
+              The rolling update also surfaced IPv6 BGP readiness warnings. Two
+              workers retained the <code>network-unavailable</code> taint until
+              Calico's five-minute startup wait expired, despite the DaemonSet's
+              IPv4/Felix readiness probe passing. Calico cleared the conditions
+              itself; the experiment did not remove taints manually. The timed
+              IPv4 baseline started only after all seven workers passed
+              address-family, DNS, and cross-worker connectivity checks.
+              Rollout, cleanup, and connectivity verification durations are
+              outside the reported startup timings.
+            </p>
+            <h4>Focused API investigation with 50 devices</h4>
+            <p>
+              After restoring dual-stack, three small runs separated the
+              workload's API traffic: a 50-device Topology, 50 plain BusyBox
+              Pods, and the same c9s device definitions created directly as
+              Nodes with an equivalent NodeProfile. The Topology reached full
+              readiness in 38.2 seconds; the direct Nodes reached readiness in
+              34.8 seconds. The installed c9s image and 14 planner workers were
+              unchanged. No controller code or Calico settings were changed for
+              these runs.
+            </p>
+            <div
+              class="table-wrap"
+              tabindex="0"
+              role="region"
+              aria-label="Original guide data table"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th>Requests during the capture window</th>
+                    <th>Topology, 50 devices</th>
+                    <th>Plain, 50 Pods</th>
+                    <th>Direct, 50 Nodes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Successful API mutation requests</td>
+                    <td>3,822</td>
+                    <td>868</td>
+                    <td>4,183</td>
+                  </tr>
+                  <tr>
+                    <td>Same, excluding Lease renewals</td>
+                    <td>3,672</td>
+                    <td>705</td>
+                    <td>4,043</td>
+                  </tr>
+                  <tr>
+                    <td>Successful Secret GETs</td>
+                    <td>1,183</td>
+                    <td>0</td>
+                    <td>1,127</td>
+                  </tr>
+                  <tr>
+                    <td>Node status PUTs</td>
+                    <td>363</td>
+                    <td>0</td>
+                    <td>375</td>
+                  </tr>
+                  <tr>
+                    <td>Pod status PATCHes</td>
+                    <td>619</td>
+                    <td>200</td>
+                    <td>632</td>
+                  </tr>
+                  <tr>
+                    <td>Successful Event POST/PATCH requests</td>
+                    <td>1,231</td>
+                    <td>200</td>
+                    <td>1,611</td>
+                  </tr>
+                  <tr>
+                    <td>Topology ownership-inventory LISTs</td>
+                    <td>400</td>
+                    <td>0</td>
+                    <td>0</td>
+                  </tr>
+                  <tr>
+                    <td>API queue rejections</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              These are API-server counter deltas, not one-to-one counts of etcd
+              transactions. Mutation totals include background requests and
+              delayed Event-series updates; they exclude token requests and
+              review APIs. Namespace resource watches and Event reporters
+              provide the more specific attribution below. Earlier small
+              workloads remained Ready during subsequent captures so their
+              deletion traffic could not contaminate the measurements. The plain
+              run used the same placement as the Topology but submitted Pods
+              through a sequential kubectl List creation; it is a request-volume
+              baseline, not a matched startup-speed trial. Those runs occupied
+              six workers; direct Nodes occupied seven. The short tests did not
+              reproduce the large run's API latency or queue exhaustion.
+            </p>
+            <p>
+              The source and measurements identify four concrete contributors:
+            </p>
+            <ol>
+              <li>
+                <strong>Full Topology reconciliation on status events.</strong>
+                The captured manager log contains 200 Topology reconciles. Every
+                pass recompiles/rechecks the child inventory and performs two
+                authoritative metadata LISTs, even when only Node readiness
+                changed. Direct Nodes removed those 400 LISTs while retaining
+                heavy Node-controller traffic. The relevant paths are
+                <code>controllers/topology/controller.go</code> and
+                <code>controllers/topology/reconcile.go</code>.
+              </li>
+              <li>
+                <strong
+                  >Full Node reconciliation repeatedly reads immutable
+                  entropy.</strong
+                >
+                The captured log contains 1,187 Node reconcile starts for 50
+                devices. Owned-resource, Pod, and Node status events enter the
+                full planning/validation path. In
+                <code>controllers/node/direct.go</code>, that path calls
+                <code>EntropyReconciler.Resolve</code>;
+                <code>controllers/node/entropy.go</code> unconditionally uses
+                its authoritative reader. Planner material loading and kubelet
+                Secret mounts also read these Secrets, so aggregate Secret GETs
+                must not all be attributed to one function. Most namespace scans
+                elsewhere in the Node path use the informer cache and cost
+                manager CPU, rather than issuing API LIST requests.
+              </li>
+              <li>
+                <strong>Status Events add a large write stream.</strong> The
+                test namespace recorded 458 c9s-controller Event occurrences,
+                including normal startup transitions such as
+                <code>DirectPodPending</code>, <code>HelperNotReady</code>, and
+                <code>PreparationCompleted</code>.
+                <code>recordDirectConditionTransitions</code> in
+                <code>controllers/node/directstatus.go</code> emits an Event for
+                each changed condition. Kubelet Event occurrences were also 458,
+                versus 150 for plain BusyBox, because c9s starts additional
+                helper containers. In the earlier 1,000-device capture, 293
+                Event requests returned HTTP 429, accounting for 293 of 296
+                recorded queue-full rejections.
+              </li>
+              <li>
+                <strong
+                  >Per-device objects and the shared peer directory amplify
+                  writes.</strong
+                >
+                The 50-device namespace created 200 per-device ConfigMaps: 50
+                each for planner input, planner output, applied plan, and
+                connectivity revision. It also created eight shared
+                peer-directory shards and modified them 93 times as membership
+                and Pod addresses appeared.
+                <code>controllers/node/directpeerdirectory.go</code> refreshes
+                that directory from the full Node path. Deployments,
+                ReplicaSets, Services, endpoint resources, and their status
+                updates add further Kubernetes work.
+              </li>
+            </ol>
+            <p>
+              This investigation identified separation of readiness/status
+              refresh from full desired-state reconciliation in both controllers
+              as the first optimization target. That separation must preserve
+              child ownership and drift checks when inputs change, and immutable
+              Secret ownership/content validation, while avoiding an
+              authoritative read on every readiness event. Other targets were
+              routine progress Events and shared-directory changes. The
+              follow-up implements these changes together; an isolated A/B test
+              is still needed to measure their individual contributions.
+            </p>
+            <p>
+              All 50 Topology Pods had dual-stack addresses. Six sampled
+              cross-worker management pings passed. All three runs completed,
+              and their dedicated namespaces were removed. Raw counters,
+              watches, manifests, scripts, and the analysis are retained locally
+              in <code>build/benchmarks/2026-09-21-api-pressure/</code>. The
+              broad e2e suite was not run; this investigation used the three
+              bounded cluster experiments.
+            </p>
+            <h3>Small comparisons after controller optimization</h3>
+            <p>
+              The follow-up image
+              <code>local-0f41aded-dirty-c00dcddfa992</code> adds status-only
+              observation, indexed payload references, coalesced peer-directory
+              updates, reduced progress Events, and optional startup batching.
+              The seven workers, 14 planner workers, dual-stack CNI, BusyBox
+              image, <code>/22</code> management network, 64Mi/10m requests, and
+              absence of PVCs were retained.
+            </p>
+            <div
+              class="table-wrap"
+              tabindex="0"
+              role="region"
+              aria-label="Original guide data table"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th>Devices / batch size</th>
+                    <th>Observed Topology Ready</th>
+                    <th>Last plan and Deployment</th>
+                    <th>Last Pod created</th>
+                    <th>Last Pod Ready</th>
+                    <th>Sandbox median / p95 / max</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>50 / unrestricted</td>
+                    <td>34.6s</td>
+                    <td>7s</td>
+                    <td>11s</td>
+                    <td>32s</td>
+                    <td>1s / 2s / 3s</td>
+                  </tr>
+                  <tr>
+                    <td>200 / unrestricted</td>
+                    <td>66.5s</td>
+                    <td>13s</td>
+                    <td>43s</td>
+                    <td>63s</td>
+                    <td>2s / 4s / 5s</td>
+                  </tr>
+                  <tr>
+                    <td>200 / 100</td>
+                    <td>75.0s</td>
+                    <td>32s</td>
+                    <td>50s</td>
+                    <td>71s</td>
+                    <td>2s / 3s / 4s</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              At 50 devices, successful Secret GETs fell from 1,183 to 351, and
+              Node/NodeProfile namespace LISTs fell from 407 to four. Controller
+              Event occurrences fell from 458 to 156. These counters include
+              other Kubernetes clients; the earlier capture also included a
+              five-second tail after readiness. Their reduction is evidence of
+              less work, not a direct attribution of wall-clock savings. The
+              observed total changed from 38.2s to 34.6s in these single
+              sequential runs.
+            </p>
+            <p>
+              For 200 unrestricted devices, all Deployments existed at 13s, yet
+              the last Pod was created at 43s. Deployment creation to ReplicaSet
+              creation had a 14s median and 27s maximum; ReplicaSet creation to
+              Pod creation had a 0s median and 3s maximum. API POST means were
+              approximately 30ms for Deployments, 22ms for ReplicaSets, and 54ms
+              for Pods. The remaining creation delay therefore lies largely
+              between the Deployment and ReplicaSet controllers' observed
+              milestones. These measurements do not distinguish
+              controller-manager CPU, client rate limiting, or queue scheduling,
+              and do not justify attributing that delay to Calico.
+            </p>
+            <p>
+              Calico IPAM lock holds averaged 0.40–0.53s per worker without
+              batching and 0.37–0.48s with batches of 100. All 200 allocations
+              were captured in each run; there were no API queue rejections. The
+              second batch's first Deployment was created one second after the
+              first batch's last network-ready sandbox. Batching was slower at
+              this size, so it is a pressure-control option rather than a proven
+              small-lab speed improvement. The previous namespace had no CNI
+              operations in the captured batched run's time window.
+            </p>
+            <p>
+              All devices in these three runs passed expected management
+              address/prefix, default route, and neighbor ping checks by IP and
+              hostname. Every device Pod had both underlay address families.
+              Each small namespace was removed after verification.
+            </p>
+            <p>
+              A 30-second manager CPU profile from the unrestricted 200-device
+              run recorded 42.75 CPU-seconds, with 41% of samples in background
+              garbage collection. Namespace Pod copies during
+              connectivity-revision cleanup accounted for 6.2% of cumulative CPU
+              samples. Cleanup now first checks whether an owned superseded
+              revision exists; fresh startup avoids the namespace Pod scan.
+              Existing reference and ownership protection remains on the actual
+              deletion path. The follow-up image is
+              <code>local-scaling-gc-20260921</code>, manager digest
+              <code
+                >sha256:98eac2354a3ba9b1730c3eab986353ddacf6eb67c8bdb718549139b09c3098da</code
+              >. A 50-device check with batches of 25 reached Topology Ready in
+              36.3s, with sandbox median/p95/max of 1s/2s/2s, no API queue
+              rejections, and 50/50 management-network checks passing. This
+              validates the combined path; it is not an isolated measurement of
+              the cleanup optimization's speedup.
+            </p>
+            <p>
+              Raw manifests, timestamps, counters, CNI logs, network results,
+              and the CPU profile are under
+              <code>build/benchmarks/2026-09-21-batched-startup/</code>. These
+              are focused scaling experiments, separate from the broad e2e
+              suite.
+            </p>
+            <h3>Follow-up with 1,000 devices and batches of 100</h3>
+            <p>
+              After the small checks passed, the same
+              <code>local-scaling-gc-20260921</code> image ran 1,000 BusyBox
+              devices with <code>spec.rollout.batchSize: 100</code>. The seven
+              workers, two planner workers per Kubernetes worker, dual-stack
+              Calico, <code>/22</code> management network, 64Mi/10m requests,
+              and no-PVC configuration were retained. All earlier benchmark
+              namespaces and Pods were gone before submission.
+            </p>
+            <div
+              class="table-wrap"
+              tabindex="0"
+              role="region"
+              aria-label="Original guide data table"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th>Measurement</th>
+                    <th>Earlier optimized image, unrestricted</th>
+                    <th>New controller changes, batch 100</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Observed Topology Ready</td>
+                    <td>789.9s</td>
+                    <td>314.9s</td>
+                  </tr>
+                  <tr>
+                    <td>Last plan applied</td>
+                    <td>338s</td>
+                    <td>267s</td>
+                  </tr>
+                  <tr>
+                    <td>Last Pod created</td>
+                    <td>340s</td>
+                    <td>290s</td>
+                  </tr>
+                  <tr>
+                    <td>Last Pod Ready</td>
+                    <td>774s</td>
+                    <td>311s</td>
+                  </tr>
+                  <tr>
+                    <td>Scheduled to sandbox ready, median / p95 / max</td>
+                    <td>123s / 430s / 468s</td>
+                    <td>2s / 4s / 11s</td>
+                  </tr>
+                  <tr>
+                    <td>Mean IPAM lock hold, range across captured workers</td>
+                    <td>5.02–5.17s</td>
+                    <td>0.38–0.48s</td>
+                  </tr>
+                  <tr>
+                    <td>IPAM block API GET / PUT mean</td>
+                    <td>175ms / 207ms</td>
+                    <td>9.9ms / 19.3ms</td>
+                  </tr>
+                  <tr>
+                    <td>API queue rejections</td>
+                    <td>296</td>
+                    <td>0</td>
+                  </tr>
+                  <tr>
+                    <td>FailedMount occurrences / affected Pods</td>
+                    <td>79 / 27</td>
+                    <td>9 / 4</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              The new run reached observed readiness in 5m15s, about 60% less
+              time than the earlier 13m10s run. Calico logs contain all 1,000
+              allocations across seven workers; the earlier IPAM lock sample
+              covered 282 allocations on two workers. The largest new IPAM lock
+              wait was 9.3s, versus about 463s previously. Etcd GETs for IPAM
+              blocks averaged 5.6ms. The previous several-minute network-setup
+              tail did not recur.
+            </p>
+            <p>
+              Every device passed its expected management IPv4/prefix, default
+              route, and ping to the next device by IP and hostname on the first
+              verification attempt. The 1,000 directed neighbor checks included
+              602 cross-worker pairs; this is not an all-pairs test. Every Pod
+              had unique IPv4 and IPv6 underlay addresses, and there were no
+              PVCs or container restarts. Network verification took another
+              69.7s after readiness and is outside the startup measurement. Nine
+              ConfigMap/Secret cache-sync mount failures on four Pods recovered,
+              as did 273 startup-probe warning occurrences. The namespace
+              <code>c9s-scale-n1000-b100-gc</code> was retained for inspection.
+            </p>
+            <h4>What still takes time</h4>
+            <p>
+              Deployment creation to ReplicaSet creation took 12s at the median,
+              22s at p95, and 24s at maximum. ReplicaSet creation to Pod
+              creation took 0s at the median and 2s at maximum. Mean API POST
+              latency was 21ms for Deployments, 25ms for ReplicaSets, and 62ms
+              for Pods. These timestamps locate a remaining delay in the
+              Deployment controller stage, but do not identify whether its CPU,
+              client rate limiting, or queue scheduling is responsible.
+            </p>
+            <p>
+              Each batch after the first produced its Deployments over roughly
+              5–7 seconds, but the last sandbox in a batch often arrived another
+              19–27 seconds after its last Deployment. The next batch's first
+              Deployment followed the preceding batch's last sandbox within 0–1
+              seconds at timestamp resolution. Thus batch admission was
+              responsive, while ten batches repeatedly paid the Kubernetes
+              workload-creation delay. The last plan time of 267s includes
+              intentional waiting for earlier batches; it is not 267 seconds of
+              planner execution. Sandbox-ready to full Pod Ready added a median
+              19s, overlapping startup of the next batch.
+            </p>
+            <p>
+              Total watch payload was still about 5.02GB, compared with 4.33GB
+              in the older capture, despite much lower IPAM latency. These
+              cluster-wide totals use different duration windows and include
+              background traffic; request counts or payload totals alone cannot
+              explain the earlier slowdown. Per-device objects, mount watches,
+              helper startup, and status updates still create substantial work.
+            </p>
+            <p>
+              The result validates the combined controller optimizations and
+              batch policy on this cluster, not batching alone or an optimal
+              batch size. There was no new 1,000-device unrestricted comparison.
+              The smaller 200-device comparison actually favored unrestricted
+              startup. Further work should measure the Deployment-controller
+              delay and compare admission sizes before increasing planner
+              concurrency or changing Calico. Raw evidence, including per-batch
+              timestamps and all network probes, is in
+              <code
+                >build/benchmarks/2026-09-21-batched-startup/n1000-b100-gc/</code
+              >.
+            </p>
+            <h3>References</h3>
+            <ul>
+              <li>
+                <a
+                  href="https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+                  >Kubernetes Pod lifecycle</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/"
+                  >Kubelet configuration</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://docs.tigera.io/calico/latest/reference/configure-cni-plugins"
+                  >Calico CNI configuration</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://github.com/projectcalico/calico/blob/v3.32.1/cni-plugin/pkg/ipamplugin/ipam_plugin.go"
+                  >Calico v3.32.1 IPAM locking</a
+                >
+              </li>
+            </ul>
+          </article>
+        </details>
+        <p data-lang="en">
+          Source:
+          <a href="../clab/clabernetes/docs/guides/scaling-performance.md"
+            >docs/guides/scaling-performance.md</a
+          >, copied from the local checkout on 21 September 2026. The guide
+          text, commands, tables and references above are preserved in full.
+          This is a static copy.
+        </p>
+        <p data-lang="de">
+          Quelle:
+          <a href="../clab/clabernetes/docs/guides/scaling-performance.md"
+            >docs/guides/scaling-performance.md</a
+          >, aus dem lokalen Checkout vom 21. September 2026. Text, Befehle,
+          Tabellen und Referenzen des Leitfadens sind oben vollständig erhalten.
+          Dies ist eine statische Kopie.
+        </p>
+      </section>
+      <footer>
+        <div class="footer-row">
+          <a href="index.html"
+            ><span data-lang="en">Back to the full architecture →</span
+            ><span data-lang="de">Zurück zur gesamten Architektur →</span></a
+          ><a href="planner-pool-explained.html"
+            ><span data-lang="en">How the planner pool works →</span
+            ><span data-lang="de">So funktioniert der Planner-Pool →</span></a
+          >
+        </div>
+      </footer>
+    </main>
+    <script src="explainer.js" defer></script>
+    <script src="scaling-performance.js" defer></script>
+  </body>
+</html>

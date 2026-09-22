@@ -1,0 +1,104 @@
+.measurement-chart {
+  margin-top: 24px;
+}
+
+.measurement-chart .pool-controls {
+  margin-top: 0;
+}
+
+.measurement-chart select {
+  max-width: 100%;
+}
+
+.measure-row + .measure-row {
+  margin-top: 24px;
+}
+
+.measure-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 9px;
+  color: var(--muted);
+}
+
+.measure-label strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.measure-track {
+  height: 24px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.measure-bar {
+  height: 100%;
+  min-width: 3px;
+  border-radius: inherit;
+}
+
+.measure-bar.before {
+  background: var(--blue);
+}
+
+.measure-bar.after {
+  background: var(--teal);
+}
+
+.metric-note {
+  margin-top: 20px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.source-guide {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.source-guide summary {
+  padding: 22px;
+  color: var(--teal);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.source-content {
+  min-width: 0;
+  padding: 0 26px 26px;
+}
+
+.source-content p,
+.source-content li {
+  max-width: 90ch;
+  color: var(--muted);
+}
+
+.source-content h3,
+.source-content h4 {
+  margin-top: 36px;
+}
+
+.source-content strong {
+  color: var(--text);
+}
+
+.scaling-page .pill {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 680px) {
+  .source-content {
+    padding: 0 14px 14px;
+  }
+
+  .source-guide summary {
+    padding: 16px;
+  }
+}
