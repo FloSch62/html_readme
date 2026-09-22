@@ -410,6 +410,26 @@ sequenceDiagram
         </div>
       </section>
       <section id="configure">
+        <div class="callout" data-lang="en">
+          <strong>Current scaling context · 08b94a3.</strong> Startup admission
+          can intentionally hold planning. A larger planner pool cannot shorten
+          that wait or make devices boot faster. The default worker requests are
+          10m CPU / 32Mi, with limits of 1 CPU / 512Mi. Measure actual usage
+          separately. See
+          <a href="scaling-performance-explained.html#stages"
+            >both admission gates and startup milestones</a
+          >.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Aktueller Skalierungsstand · 08b94a3.</strong>
+          Startup-Freigaben können Planung bewusst zurückhalten. Mehr Planner
+          verkürzen diese Wartezeit nicht und booten Geräte nicht schneller.
+          Standard-Worker-Requests sind 10m CPU / 32Mi, Limits 1 CPU / 512Mi.
+          Echten Verbrauch separat messen. Siehe
+          <a href="scaling-performance-explained.html#stages"
+            >beide Freigabe-Gates und Start-Meilensteine</a
+          >.
+        </div>
         <div class="section-head">
           <div class="section-index">05 · Capacity</div>
           <div>
@@ -461,16 +481,20 @@ sequenceDiagram
             <p data-lang="en">
               Large bursts would create many helper Pods competing with the
               devices for scheduling, CPU and memory. A bounded pool keeps that
-              demand predictable. The current planning-controller concurrency
-              ceiling is 16; replicas above that cannot all receive work at
-              once.
+              demand predictable. With the pool enabled, the Node controller and
+              planner-session controller each have 16 reconcile workers. Node
+              planning and status observations share those Node workers; each
+              pool Pod handles one request at a time. Extra replicas above 16
+              cannot all receive planning work at once.
             </p>
             <p data-lang="de">
               Große Startwellen würden viele Helfer-Pods erzeugen, die mit den
               Geräten um Scheduling, CPU und RAM konkurrieren. Ein begrenzter
-              Pool hält diesen Bedarf kontrollierbar. Die aktuelle
-              Parallelitätsgrenze des Planungs-Controllers beträgt 16; darüber
-              können nicht alle Replicas gleichzeitig Arbeit erhalten.
+              Pool hält diesen Bedarf kontrollierbar. Mit aktiviertem Pool haben
+              Node- und Planner-Session-Controller jeweils 16 Reconcile-Worker.
+              Node-Planung und Status-Beobachtungen teilen die Node-Worker;
+              jeder Pool-Pod bearbeitet eine Anfrage gleichzeitig. Über 16
+              Replicas können nicht alle gleichzeitig Planungsarbeit erhalten.
             </p>
           </article>
         </div>

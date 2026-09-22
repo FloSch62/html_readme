@@ -80,26 +80,46 @@
           Wie erreicht <span>r1</span> den <span>Collector?</span>
         </h1>
         <p class="hero-lead" data-lang="en">
-          Every node in a lab has a management address like
+          With the default management overlay enabled, every node has an address
+          like
           <code>172.20.20.11</code>, and a collector in another Pod, on another
           worker, subscribes to it by that address. Nothing about that changed.
           What changed is how the packet gets there: no more flooding a copy to
           every Pod, no more MAC learning, no more DNS lookup every second. One
-          route, one neighbor per peer, one tunnel. Follow a packet from the
+          route, IPv4 neighbors on demand, one tunnel. Follow a packet from the
           device, through its local gateway, to a peer on another worker.
         </p>
         <p class="hero-lead" data-lang="de">
-          Jeder Node im Lab hat eine Management-Adresse wie
+          Mit dem standardmäßig aktivierten Management-Overlay hat jeder Node
+          eine Adresse wie
           <code>172.20.20.11</code>, und ein Collector in einem anderen Pod, auf
           einem anderen Worker, abonniert es unter genau dieser Adresse. Daran
           hat sich nichts geändert. Geändert hat sich, wie das Paket dort
           hinkommt: keine Kopie mehr an jeden Pod, kein MAC-Learning, kein
-          DNS-Lookup jede Sekunde. Eine Route, ein Nachbar pro Peer, ein Tunnel.
-          Wir folgen einem Paket vom Gerät über sein lokales Gateway zu einem
-          Peer auf einem anderen Worker.
+          DNS-Lookup jede Sekunde. Eine Route, IPv4-Nachbarn bei Bedarf, ein
+          Tunnel. Wir folgen einem Paket vom Gerät über sein lokales Gateway zu
+          einem Peer auf einem anderen Worker.
         </p>
       </div>
 
+      <div class="callout" data-lang="en">
+        Updated against <code>08b94a3</code> on 22 September 2026. The routed
+        transport remains; IPv4 kernel peer state is now installed on demand.
+        The packet examples below show contacted peers. Management can be
+        explicitly disabled for suitable labs; see
+        <a href="scaling-performance-explained.html#controller"
+          >behavior and limits</a
+        >.
+      </div>
+      <div class="callout" data-lang="de">
+        Am 22. September 2026 gegen <code>08b94a3</code> aktualisiert. Der
+        geroutete Transport bleibt; IPv4-Kernelzustand wird jetzt bei Bedarf
+        installiert. Die Paketbeispiele unten zeigen kontaktierte Peers.
+        Management kann für geeignete Labs explizit abgeschaltet werden; siehe
+        <a href="scaling-performance-explained.html#controller"
+          >Verhalten und Grenzen</a
+        >.
+      </div>
       <!-- ============================================================ 1 BIG PICTURE -->
       <section id="big">
         <div class="section-head">
@@ -140,8 +160,9 @@
           neighbors. The <code>clabwire</code> sidecar answers every ARP itself,
           sends the packet through one tunnel straight to the Pod that hosts the
           peer, and the controller tells every Pod where every peer lives by
-          publishing a small directory. Nothing is copied, nothing is learned,
-          nothing is looked up.
+          publishing a small directory. Traffic is not flooded and peer
+          locations are not learned from traffic. IPv4 neighbors are resolved
+          from the authorized directory when first contacted.
         </p>
         <p data-lang="de">
           Das neue Mesh ist ein <strong>Router in jedem Pod</strong>. Der Node
@@ -150,8 +171,9 @@
           <code>clabwire</code> beantwortet jedes ARP selbst, schickt das Paket
           durch einen Tunnel direkt zu dem Pod, der den Peer beherbergt, und der
           Controller sagt jedem Pod, wo jeder Peer wohnt, indem er ein kleines
-          Verzeichnis veröffentlicht. Nichts wird kopiert, nichts gelernt,
-          nichts nachgeschlagen.
+          Verzeichnis veröffentlicht. Traffic wird nicht geflutet; Peer-Orte
+          werden nicht aus Traffic gelernt. IPv4-Nachbarn werden beim ersten
+          Kontakt aus dem autorisierten Verzeichnis aufgelöst.
         </p>
         <figure class="diagram">
           <svg
@@ -712,24 +734,87 @@
           </figcaption>
         </figure>
         <p data-lang="en">
-          Per IPv4 peer, <code>clabwire</code> installs exactly two entries in
-          the Pod's kernel: a permanent <strong>neighbor entry</strong> (the
-          peer's management address maps to the peer's derived MAC) and a
-          <strong>forwarding entry</strong> (that MAC lives behind the peer's
-          Pod address). Sixty-three peers, sixty-three entries each. Two
-          thousand peers, two thousand. That is the whole scaling story: the
-          state is linear and the work per packet is constant.
+          Since revision <code>5b40907</code>, <code>clabwire</code> installs
+          the IPv4 neighbor and forwarding entry
+          <strong>when that peer is first contacted</strong>. The kernel queues
+          the packet while the resolver checks the authorized peer directory. An
+          idle peer creates no IPv4 neighbor/FDB entry; a contacted peer keeps
+          its entries until it leaves the directory. Unknown targets are not
+          flooded.
         </p>
         <p data-lang="de">
-          Pro IPv4-Peer installiert <code>clabwire</code> genau zwei Einträge im
-          Pod-Kernel: einen permanenten
-          <strong>Nachbar-Eintrag</strong> (Management-Adresse des Peers auf
-          dessen abgeleitete MAC) und einen <strong>Forwarding-Eintrag</strong>
-          (diese MAC wohnt hinter der Pod-Adresse des Peers). Dreiundsechzig
-          Peers, jeweils dreiundsechzig Einträge. Zweitausend Peers,
-          zweitausend. Das ist die ganze Skalierungsgeschichte: der Zustand ist
-          linear und die Arbeit pro Paket konstant.
+          Seit Revision <code>5b40907</code> installiert
+          <code>clabwire</code> IPv4-Nachbar- und Forwarding-Einträge
+          <strong>beim ersten Kontakt mit diesem Peer</strong>. Der Kernel
+          puffert das Paket, während der Resolver das autorisierte
+          Peer-Verzeichnis prüft. Ein ungenutzter Peer erzeugt keinen
+          IPv4-Nachbar-/FDB-Eintrag; kontaktierte Peers behalten ihre Einträge
+          bis zum Verlassen des Verzeichnisses. Unbekannte Ziele werden nicht
+          geflutet.
         </p>
+        <div class="diagram" data-lang="en">
+          <div class="diagram-title">
+            <b>IPv4 state follows communication</b>
+          </div>
+          <pre class="mermaid">
+sequenceDiagram
+ participant D as Device
+ participant K as Pod kernel
+ participant W as clabwire resolver
+ participant P as Peer Pod
+ D-&gt;&gt;K: First packet to peer management IP
+ K-&gt;&gt;K: Queue packet for unresolved neighbor
+ K-&gt;&gt;W: Request neighbor resolution
+ W-&gt;&gt;W: Check authorized peer directory
+ W-&gt;&gt;K: Install peer neighbor and tunnel mapping
+ K-&gt;&gt;P: Send queued packet directly
+ Note over K,P: Following packets use the installed kernel state</pre
+          >
+        </div>
+        <div class="diagram" data-lang="de">
+          <div class="diagram-title">
+            <b>IPv4-Zustand folgt der Kommunikation</b>
+          </div>
+          <pre class="mermaid">
+sequenceDiagram
+ participant D as Gerät
+ participant K as Pod-Kernel
+ participant W as clabwire-Resolver
+ participant P as Peer-Pod
+ D-&gt;&gt;K: Erstes Paket zur Peer-Management-IP
+ K-&gt;&gt;K: Paket für unbekannten Nachbarn puffern
+ K-&gt;&gt;W: Nachbar-Auflösung anfordern
+ W-&gt;&gt;W: Autorisiertes Peer-Verzeichnis prüfen
+ W-&gt;&gt;K: Nachbar und Tunnel-Zuordnung installieren
+ K-&gt;&gt;P: Gepuffertes Paket direkt senden
+ Note over K,P: Weitere Pakete nutzen den installierten Kernel-Zustand</pre
+          >
+        </div>
+        <div class="callout" data-lang="en">
+          <strong>Scaling still has several budgets.</strong> With N devices,
+          preinstalling every IPv4 peer meant roughly N × (N − 1) neighbor
+          entries across the lab. On-demand resolution reduces unused entries,
+          but all-to-all traffic can still reach that shape. Directory and hosts
+          data remain per peer, and IPv6 gateway proxy state still covers all
+          IPv6 peers. Pod slots, requests, kubelet/API work and boot peaks all
+          matter. See the
+          <a href="scaling-performance-explained.html#capacity"
+            >current scaling guide</a
+          >.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Skalierung hat weiterhin mehrere Budgets.</strong> Bei N
+          Geräten bedeutete Vorinstallation aller IPv4-Peers rund N × (N − 1)
+          Nachbar-Einträge im gesamten Lab. Auflösung bei Bedarf spart
+          ungenutzte Einträge, aber All-to-all-Traffic kann diesen Zustand
+          weiterhin erreichen. Verzeichnis- und Hosts-Daten bleiben pro Peer;
+          IPv6-Gateway-Proxy-Zustand erfasst weiterhin alle IPv6-Peers.
+          Pod-Slots, Requests, Kubelet-/API-Arbeit und Boot-Spitzen zählen
+          ebenfalls. Siehe
+          <a href="scaling-performance-explained.html#capacity"
+            >aktuellen Skalierungsleitfaden</a
+          >.
+        </div>
         <div class="card" id="peer-mac">
           <h3>
             <span data-lang="en">Where does a peer's MAC come from?</span
@@ -1226,9 +1311,9 @@ $ bridge fdb show dev c9sm0 | head -2
               addresses into eight ConfigMap shards, c9s-peer-directory-0
               through -7. A node change updates one shard. The kubelet on each
               worker projects all eight as files into its Pods. In each Pod,
-              clabwire reads changed files and updates neighbor entries,
-              forwarding entries, and /etc/hosts. The same fixed volume layout
-              serves every lab size.
+              clabwire reads changed files, updates the authorized resolver
+              inventory and /etc/hosts, and refreshes entries for contacted IPv4
+              peers. The same fixed volume layout serves every lab size.
             </desc>
             <defs>
               <marker
@@ -1619,8 +1704,8 @@ $ bridge fdb show dev c9sm0 | head -2
             </li>
             <li>
               <code>clabwire</code> notices the changed files on its default
-              one-second tick and updates neighbors, FDB entries, and
-              <code>/etc/hosts</code>.
+              one-second tick and updates the peer inventory, contacted IPv4
+              entries, IPv6 proxy state, and <code>/etc/hosts</code>.
             </li>
           </ol>
           <ol data-lang="de">
@@ -1638,8 +1723,9 @@ $ bridge fdb show dev c9sm0 | head -2
             </li>
             <li>
               <code>clabwire</code> bemerkt die geänderten Dateien bei seinem
-              standardmäßig sekündlichen Tick und aktualisiert Nachbarn,
-              FDB-Einträge und <code>/etc/hosts</code>.
+              standardmäßig sekündlichen Tick und aktualisiert Peer-Inventar,
+              kontaktierte IPv4-Einträge, IPv6-Proxy-Zustand und
+              <code>/etc/hosts</code>.
             </li>
           </ol>
           <p data-lang="en">
@@ -1994,8 +2080,8 @@ $ curl -s -o /dev/null -w '%{http_code}\n' http://172.16.79.201:3000/api/health 
                   forwarding entries
                 </td>
                 <td data-lang="de">
-                  alle ready 54 s nach dem Apply; jeder Pod hält 29 Nachbar- und
-                  29 Forwarding-Einträge
+                  alle ready 54 s nach dem Apply; im damaligen Stand hielt jeder
+                  Pod 29 Nachbar- und 29 Forwarding-Einträge
                 </td>
               </tr>
               <tr>
@@ -2421,7 +2507,7 @@ $ curl -s -o /dev/null -w '%{http_code}\n' http://172.16.79.201:3000/api/health 
         ><span class="c"># clabwire container log: mesh peers, wires, carrier</span>
 $ kubectl logs deploy/leaf1 -c clabwire
 
-<span class="c"># inside any node Pod: expect c9sr0 paired with the node leg, c9sm0, one entry per peer</span>
+<span class="c"># inside any node Pod: expect c9sr0 paired with the node leg, c9sm0, IPv4 entries for contacted peers</span>
 $ ip -br link
 $ ip neigh show dev c9sm0 | grep -c PERMANENT
 $ bridge fdb show dev c9sm0 | grep -c permanent

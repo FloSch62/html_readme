@@ -75,3 +75,363 @@
   });
   render();
 })();
+
+(() => {
+  const form = document.getElementById("capacityCalculator");
+  const fields = [...form.querySelectorAll('input[type="number"]')];
+  const profiles = {
+    srl: [0.5, 2],
+    frr: [0.1, 0.25],
+    srsim: [0.5, 4],
+    busybox: [0.01, 0.03125],
+  };
+  const hardware = { small: [8, 32], medium: [16, 64], large: [32, 128] };
+  const get = (id) => document.getElementById(id);
+  const selected = (name) =>
+    form.querySelector(`input[name="${name}"]:checked`)?.value;
+  const set = (id, value) => {
+    get(id).value = value;
+  };
+  const floor = (value) => Math.floor(value + 1e-9);
+
+  function fit(slots, cpu, ram, requestCPU, requestRAM) {
+    return Math.max(
+      0,
+      Math.min(slots, floor(cpu / requestCPU), floor(ram / requestRAM)),
+    );
+  }
+
+  // Pack identical routers first, then clients into their remaining capacity.
+  // Keep repeated placements as groups, so large estimates do not create huge arrays.
+  function estimate(v, routers, clients) {
+    const slots = v.capMaxPods - v.capReservedPods;
+    const cpu = v.capCPU - v.capReservedCPU;
+    const ram = v.capRAM - v.capReservedRAM;
+    const routerFit = fit(slots, cpu, ram, v.capPodCPU, v.capPodRAM);
+    const clientFit = fit(slots, cpu, ram, v.capClientCPU, v.capClientRAM);
+    if (routerFit < 1 || (clients > 0 && clientFit < 1)) return null;
+    const base = [];
+    const add = (list, workers, r, c = 0) => {
+      if (workers > 0) list.push({ workers, routers: r, clients: c });
+    };
+    add(base, Math.floor(routers / routerFit), routerFit);
+    add(base, routers % routerFit ? 1 : 0, routers % routerFit);
+    const placement = [];
+    let remaining = clients;
+    for (const group of base) {
+      const capacity = fit(
+        slots - group.routers,
+        cpu - group.routers * v.capPodCPU,
+        ram - group.routers * v.capPodRAM,
+        v.capClientCPU,
+        v.capClientRAM,
+      );
+      const full =
+        capacity > 0
+          ? Math.min(group.workers, Math.floor(remaining / capacity))
+          : 0;
+      add(placement, full, group.routers, capacity);
+      remaining -= full * capacity;
+      let unused = group.workers - full;
+      if (unused > 0 && capacity > 0 && remaining > 0) {
+        const take = Math.min(remaining, capacity);
+        add(placement, 1, group.routers, take);
+        remaining -= take;
+        unused -= 1;
+      }
+      add(placement, unused, group.routers);
+    }
+    if (remaining > 0) {
+      add(placement, Math.floor(remaining / clientFit), 0, clientFit);
+      add(placement, remaining % clientFit ? 1 : 0, 0, remaining % clientFit);
+    }
+    const workers = placement.reduce((sum, group) => sum + group.workers, 0);
+    return {
+      slots,
+      cpu,
+      ram,
+      routerFit,
+      workers,
+      placement,
+      demandCPU: routers * v.capPodCPU + clients * v.capClientCPU,
+      demandRAM: routers * v.capPodRAM + clients * v.capClientRAM,
+    };
+  }
+
+  function render() {
+    const de = document.documentElement.dataset.lang === "de";
+    const t = (en, german) => (de ? german : en);
+    const fmt = (n) =>
+      n.toLocaleString(de ? "de-DE" : "en-US", { maximumFractionDigits: 3 });
+    const mode = selected("capacityMode");
+    get("calcCountFields").hidden = mode !== "count";
+    get("calcClosFields").hidden = mode !== "clos";
+    get("capDevices").disabled = mode !== "count";
+    for (const id of ["capGroups", "capLeaves", "capSpines", "capSupers"])
+      get(id).disabled = mode !== "clos";
+    get("calcCustomHardware").hidden =
+      selected("capacityHardware") !== "custom";
+    form.querySelectorAll("[data-router-count]").forEach((button) => {
+      button.setAttribute(
+        "aria-pressed",
+        String(button.dataset.routerCount === get("capDevices").value),
+      );
+    });
+    const profile = selected("capacityProfile");
+    get("calcProfileHint").textContent =
+      profile === "frr" || profile === "srsim"
+        ? t(
+            "Uses the larger fabric-router budget for all routers. Clients have their own budget.",
+            "Nutzt das größere Fabric-Router-Budget für alle Router. Clients haben ein eigenes Budget.",
+          )
+        : profile
+          ? t(
+              "One device Pod per router; clients are counted separately.",
+              "Ein Geräte-Pod pro Router; Clients werden separat gezählt.",
+            )
+          : t(
+              "Custom router budget active. Choose a device card to restore its recorded profile.",
+              "Eigenes Router-Budget aktiv. Eine Gerätekarte stellt das aufgezeichnete Profil wieder her.",
+            );
+    const invalid = fields.find(
+      (field) =>
+        !field.disabled &&
+        (!field.validity.valid || !Number.isFinite(field.valueAsNumber)),
+    );
+    fields.forEach((field) =>
+      field.setAttribute("aria-invalid", String(field === invalid)),
+    );
+    const error = (message) => {
+      get("capacityError").textContent = message;
+      get("calcMobileEstimate").textContent = t(
+        "Check inputs",
+        "Eingaben prüfen",
+      );
+      get("capacityError").hidden = false;
+      get("calcValidResult").hidden = true;
+      get("calcTopologyHint").textContent = t(
+        "Complete the inputs to see your topology size.",
+        "Eingaben vervollständigen, um die Topologiegröße zu sehen.",
+      );
+      get("calcHardwareHint").textContent = "";
+      for (const key of Object.keys(hardware))
+        get(`calcPreview-${key}`).textContent = "—";
+    };
+    if (invalid) {
+      if (invalid.closest("details")) invalid.closest("details").open = true;
+      const label = invalid
+        .closest("label")
+        .querySelector(`[data-lang="${de ? "de" : "en"}"]`).textContent;
+      error(
+        t(
+          `Check “${label}”: enter a valid ${invalid.step === "1" ? "whole " : ""}number of at least ${invalid.min}.`,
+          `„${label}“ prüfen: eine gültige ${invalid.step === "1" ? "ganze " : ""}Zahl ab ${invalid.min} eingeben.`,
+        ),
+      );
+      return;
+    }
+    const v = Object.fromEntries(
+      fields.map((field) => [field.id, field.valueAsNumber]),
+    );
+    const routers =
+      mode === "clos"
+        ? v.capGroups * (v.capLeaves + v.capSpines) + v.capSupers
+        : v.capDevices;
+    const clients = v.capClients;
+    const pods = routers + clients;
+    const links =
+      mode === "clos"
+        ? v.capGroups * v.capLeaves * v.capSpines +
+          v.capGroups * v.capSpines * v.capSupers +
+          clients
+        : null;
+    if (
+      !Number.isSafeInteger(pods) ||
+      (links !== null && !Number.isSafeInteger(links))
+    ) {
+      error(
+        t(
+          "This topology is too large for the calculator. Reduce the counts.",
+          "Diese Topologie ist für den Rechner zu groß. Die Anzahlen reduzieren.",
+        ),
+      );
+      return;
+    }
+    const result = estimate(v, routers, clients);
+    if (!result || !Number.isFinite(result.workers * (v.capCPU + v.capRAM))) {
+      error(
+        t(
+          "A device cannot fit on this worker after reserves. Choose a larger worker or review the budgets and reserves below.",
+          "Ein Gerät passt nach Abzug der Reserve nicht auf diesen Worker. Größeren Worker wählen oder Budgets und Reserven unten prüfen.",
+        ),
+      );
+      return;
+    }
+    get("capacityError").hidden = true;
+    get("calcValidResult").hidden = false;
+    get("calcTopologyHint").textContent =
+      mode === "clos"
+        ? t(
+            `${fmt(routers)} routers + ${fmt(clients)} clients = ${fmt(pods)} device Pods · ${fmt(links)} links. Each leaf connects to every spine in its group; every spine connects to all superspines; one link per client.`,
+            `${fmt(routers)} Router + ${fmt(clients)} Clients = ${fmt(pods)} Geräte-Pods · ${fmt(links)} Links. Jeder Leaf verbindet sich mit allen Gruppen-Spines, jeder Spine mit allen Superspines; ein Link pro Client.`,
+          )
+        : t(
+            `${fmt(routers)} devices + ${fmt(clients)} clients = ${fmt(pods)} device Pods. Excludes system and planner Pods, which are covered by the worker reserve.`,
+            `${fmt(routers)} Geräte + ${fmt(clients)} Clients = ${fmt(pods)} Geräte-Pods. System- und Planner-Pods sind in der Worker-Reserve enthalten.`,
+          );
+    get("calcHardwareHint").textContent = t(
+      `${fmt(result.cpu)} vCPU, ${fmt(result.ram)} GiB and ${fmt(result.slots)} Pod slots available per worker after reserves. Pod ceiling: ${fmt(v.capMaxPods)}.`,
+      `Nach Reserve pro Worker verfügbar: ${fmt(result.cpu)} vCPU, ${fmt(result.ram)} GiB und ${fmt(result.slots)} Pod-Slots. Pod-Limit: ${fmt(v.capMaxPods)}.`,
+    );
+    get("capacityResult").innerHTML =
+      `<strong class="calc-worker-number">${fmt(result.workers)}</strong><span>${t(result.workers === 1 ? "worker" : "workers", "Worker")}</span>`;
+    get("capacityDetail").textContent = t(
+      `Each with ${fmt(v.capCPU)} vCPU / ${fmt(v.capRAM)} GiB · for ${fmt(pods)} device Pods`,
+      `Jeweils ${fmt(v.capCPU)} vCPU / ${fmt(v.capRAM)} GiB · für ${fmt(pods)} Geräte-Pods`,
+    );
+    get("calcMobileEstimate").textContent = t(
+      `${fmt(result.workers)} ${result.workers === 1 ? "worker" : "workers"} estimated`,
+      `${fmt(result.workers)} Worker geschätzt`,
+    );
+    get("calcTotalCPU").textContent = fmt(result.workers * v.capCPU);
+    get("calcTotalRAM").textContent = fmt(result.workers * v.capRAM);
+    const limits = [
+      result.slots,
+      floor(result.cpu / v.capPodCPU),
+      floor(result.ram / v.capPodRAM),
+    ];
+    const labels = [t("Pod slots", "Pod-Slots"), "CPU", "RAM"];
+    const limiting = labels
+      .filter((_, i) => limits[i] === result.routerFit)
+      .join(" + ");
+    get("calcBottleneck").textContent = t(
+      `Up to ${fmt(result.routerFit)} routers per worker. Router density is limited by ${limiting}.`,
+      `Bis zu ${fmt(result.routerFit)} Router pro Worker. Die Router-Dichte wird durch ${limiting} begrenzt.`,
+    );
+    const resources = [
+      {
+        label: "CPU",
+        demand: result.demandCPU,
+        reserved: result.workers * v.capReservedCPU,
+        total: result.workers * v.capCPU,
+        unit: "vCPU",
+      },
+      {
+        label: "RAM",
+        demand: result.demandRAM,
+        reserved: result.workers * v.capReservedRAM,
+        total: result.workers * v.capRAM,
+        unit: "GiB",
+      },
+      {
+        label: "Pods",
+        demand: pods,
+        reserved: result.workers * v.capReservedPods,
+        total: result.workers * v.capMaxPods,
+        unit: t("slots", "Slots"),
+      },
+    ];
+    get("calcBudgetBars").replaceChildren(
+      ...resources.map((r) => {
+        const node = document.createElement("div");
+        node.className = "calc-resource";
+        const free = Math.max(0, r.total - r.demand - r.reserved);
+        node.innerHTML = `<div class="calc-resource-label"><strong>${r.label}</strong><span>${fmt(r.demand)} / ${fmt(r.total)} ${r.unit}</span></div><div class="calc-resource-track" aria-hidden="true"><span class="device" style="width:${(100 * r.demand) / r.total}%"></span><span class="reserved" style="width:${(100 * r.reserved) / r.total}%"></span></div><p>${t(`${fmt(r.reserved)} reserved · ${fmt(free)} unallocated`, `${fmt(r.reserved)} reserviert · ${fmt(free)} unverplant`)}</p>`;
+        return node;
+      }),
+    );
+    get("calcPlacement").replaceChildren(
+      ...result.placement.map((group) => {
+        const row = document.createElement("p");
+        row.className = "calc-placement-row";
+        row.textContent = t(
+          `${fmt(group.workers)} × worker with ${fmt(group.routers)} routers + ${fmt(group.clients)} clients`,
+          `${fmt(group.workers)} × Worker mit ${fmt(group.routers)} Routern + ${fmt(group.clients)} Clients`,
+        );
+        return row;
+      }),
+    );
+    const note = document.createElement("p");
+    note.className = "calc-hint";
+    note.textContent = t(
+      "Packs routers first, then clients into the remaining space. This is a feasible budget layout, not a prediction of Kubernetes placement or proof of the minimum worker count.",
+      "Platziert zuerst Router, danach Clients im freien Budget. Dies ist eine mögliche Budgetverteilung, keine Vorhersage der Kubernetes-Platzierung oder ein Beweis der minimalen Worker-Anzahl.",
+    );
+    get("calcPlacement").append(note);
+    get("calcNextStep").textContent = limiting.includes(labels[0])
+      ? t(
+          "More RAM alone will not add Pod slots. Add workers or deliberately validate a higher Pod limit.",
+          "Mehr RAM allein schafft keine Pod-Slots. Worker ergänzen oder ein höheres Pod-Limit gezielt validieren.",
+        )
+      : t(
+          "Compare the worker sizes on the left. More RAM or CPU can fit more routers, until Pod slots become the limit.",
+          "Worker-Größen vergleichen. Mehr RAM oder CPU ermöglicht mehr Router, bis Pod-Slots begrenzen.",
+        );
+    for (const [key, [cpu, ram]] of Object.entries(hardware)) {
+      const preview = estimate(
+        {
+          ...v,
+          capCPU: cpu,
+          capRAM: ram,
+          capReservedCPU: cpu / 8,
+          capReservedRAM: ram / 8,
+        },
+        routers,
+        clients,
+      );
+      get(`calcPreview-${key}`).textContent = preview
+        ? t(
+            `${fmt(preview.workers)} ${preview.workers === 1 ? "worker" : "workers"}`,
+            `${fmt(preview.workers)} Worker`,
+          )
+        : t("Does not fit", "Passt nicht");
+    }
+  }
+
+  form.addEventListener("submit", (event) => event.preventDefault());
+  form.addEventListener("change", (event) => {
+    const field = event.target;
+    if (field.name === "capacityProfile" && profiles[field.value]) {
+      const [cpu, ram] = profiles[field.value];
+      set("capPodCPU", cpu);
+      set("capPodRAM", ram);
+    }
+    if (field.name === "capacityHardware" && hardware[field.value]) {
+      const [cpu, ram] = hardware[field.value];
+      set("capCPU", cpu);
+      set("capRAM", ram);
+      set("capReservedCPU", cpu / 8);
+      set("capReservedRAM", ram / 8);
+    }
+    render();
+  });
+  form.addEventListener("input", (event) => {
+    if (event.target.type !== "number") return;
+    if (["capPodCPU", "capPodRAM"].includes(event.target.id)) {
+      form.querySelectorAll('[name="capacityProfile"]').forEach((radio) => {
+        radio.checked = false;
+      });
+    }
+    render();
+  });
+  form.querySelectorAll("[data-router-count]").forEach((button) =>
+    button.addEventListener("click", () => {
+      set("capDevices", button.dataset.routerCount);
+      render();
+    }),
+  );
+  form.addEventListener("reset", (event) => {
+    event.preventDefault();
+    for (const input of form.querySelectorAll("input")) {
+      if (input.type === "radio") input.checked = input.defaultChecked;
+      else input.value = input.defaultValue;
+    }
+    get("calcAdvanced").open = false;
+    render();
+  });
+  new MutationObserver(render).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-lang"],
+  });
+  render();
+})();

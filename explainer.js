@@ -1,5 +1,14 @@
 (async () => {
   const root = document.documentElement;
+  // Mermaid measures the visible DOM. Keep theme, language and tab changes
+  // together with their render so a later click cannot hide an active diagram.
+  let diagramUpdates = Promise.resolve();
+  const queueDiagramUpdate = (update) => {
+    diagramUpdates = diagramUpdates.then(update).catch((error) => {
+      console.error("Diagram update failed:", error);
+    });
+    return diagramUpdates;
+  };
   const savedTheme = localStorage.getItem("direct-c9s-theme");
   if (savedTheme === "light" || savedTheme === "dark") {
     root.dataset.theme = savedTheme;
@@ -24,11 +33,13 @@
         : "en",
   );
   langButton.addEventListener("click", () => {
-    const next = root.dataset.lang === "de" ? "en" : "de";
-    localStorage.setItem("direct-c9s-lang", next);
-    applyLang(next);
-    updateScrollState();
-    renderVisibleNodes();
+    queueDiagramUpdate(async () => {
+      const next = root.dataset.lang === "de" ? "en" : "de";
+      localStorage.setItem("direct-c9s-lang", next);
+      applyLang(next);
+      updateScrollState();
+      await renderVisibleNodes();
+    });
   });
 
   document.getElementById("pageSelect").addEventListener("change", (event) => {
@@ -249,10 +260,12 @@
     }
   }
 
-  document.getElementById("themeButton").addEventListener("click", async () => {
-    root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
-    localStorage.setItem("direct-c9s-theme", root.dataset.theme);
-    await renderMermaid();
+  document.getElementById("themeButton").addEventListener("click", () => {
+    queueDiagramUpdate(async () => {
+      root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+      localStorage.setItem("direct-c9s-theme", root.dataset.theme);
+      await renderMermaid();
+    });
   });
 
   document.querySelectorAll("[data-tabs]").forEach((tabs) => {
@@ -260,16 +273,18 @@
     const panels = [...tabs.querySelectorAll("[data-panel]")];
     buttons.forEach((button) => {
       button.addEventListener("click", () => {
-        buttons.forEach((item) =>
-          item.setAttribute("aria-selected", String(item === button)),
-        );
-        panels.forEach((panel) =>
-          panel.classList.toggle(
-            "active",
-            panel.dataset.panel === button.dataset.tab,
-          ),
-        );
-        renderVisibleNodes();
+        queueDiagramUpdate(async () => {
+          buttons.forEach((item) =>
+            item.setAttribute("aria-selected", String(item === button)),
+          );
+          panels.forEach((panel) =>
+            panel.classList.toggle(
+              "active",
+              panel.dataset.panel === button.dataset.tab,
+            ),
+          );
+          await renderVisibleNodes();
+        });
       });
     });
   });
@@ -314,7 +329,7 @@
     try {
       ({ default: mermaid } =
         await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"));
-      await renderMermaid();
+      await queueDiagramUpdate(renderMermaid);
     } catch (error) {
       console.warn(
         "Mermaid could not be loaded; diagram source remains visible.",

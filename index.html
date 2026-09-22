@@ -207,6 +207,31 @@
         </div>
       </div>
 
+      <div class="wrap">
+        <div class="callout" data-lang="en">
+          <strong>Scaling update · 22 September 2026.</strong> c9s now combines
+          installation-wide batches, optional per-Topology limits and per-host
+          boot gates. Link allocation is queued per namespace; status writes are
+          coalesced; IPv4 management peers resolve on demand; supported
+          filesystems reuse runtime binary storage with reflinks. Read the
+          <a href="scaling-performance-explained.html"
+            >scaling guide with diagrams, capacity calculator and verified
+            large-lab results</a
+          >.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Skalierungsupdate · 22. September 2026.</strong> c9s
+          kombiniert jetzt installationsweite Batches, optionale Topology-Limits
+          und Boot-Gates pro Host. Link-Allokation läuft pro Namespace;
+          Status-Schreibvorgänge werden gebündelt; IPv4-Management-Peers werden
+          bei Bedarf aufgelöst; unterstützte Dateisysteme nutzen Reflinks für
+          Runtime-Binaries. Zum
+          <a href="scaling-performance-explained.html"
+            >Skalierungsleitfaden mit Diagrammen, Kapazitätsrechner und
+            verifizierten Groß-Labs</a
+          >.
+        </div>
+      </div>
       <section id="model" data-nav="Model">
         <div class="wrap">
           <div class="section-head">
@@ -1641,6 +1666,28 @@ flowchart LR
             </table>
           </div>
 
+          <div class="callout" data-lang="en">
+            <strong>Optional startup gate:</strong> Newly created workloads with
+            <code>maxConcurrentPerHost</code> enabled get a
+            <code>startup-gate</code> init container before preparation. It
+            waits for admission on the scheduled host; the slot is released when
+            the primary container reports <code>started: true</code>. Existing
+            templates keep their gate choice. See
+            <a href="scaling-performance-explained.html#host-boots"
+              >startup ordering and policy changes</a
+            >.
+          </div>
+          <div class="callout" data-lang="de">
+            <strong>Optionales Startup-Gate:</strong> Neu erzeugte Workloads mit
+            aktiviertem <code>maxConcurrentPerHost</code> erhalten vor der
+            Vorbereitung einen Init-Container <code>startup-gate</code>. Er
+            wartet auf Freigabe auf dem eingeplanten Host; der Slot wird bei
+            <code>started: true</code> des primären Containers frei. Bestehende
+            Templates behalten ihre Gate-Entscheidung. Siehe
+            <a href="scaling-performance-explained.html#host-boots"
+              >Startreihenfolge und Policy-Änderungen</a
+            >.
+          </div>
           <div class="section-head" style="margin-top: 56px">
             <div class="section-index" data-lang="en">The init container</div>
             <div class="section-index" data-lang="de">Der Init-Container</div>
@@ -3404,8 +3451,9 @@ sequenceDiagram
             <strong>Cables and management use different transports.</strong> A
             cable uses the point-to-point userspace wire on UDP 14790.
             Management uses kernel VXLAN on UDP 14789 with explicit peer routes,
-            neighbors and forwarding entries. The sidecar answers address
-            discovery locally; it does not flood it to every Pod.
+            neighbors and forwarding entries installed on demand for contacted
+            IPv4 peers. The sidecar answers address discovery locally; it does
+            not flood it to every Pod.
           </div>
           <div class="callout" data-lang="de">
             <strong
@@ -3413,7 +3461,8 @@ sequenceDiagram
             >
             Ein Kabel nutzt die Punkt-zu-Punkt-Userspace-Leitung auf UDP 14790.
             Management nutzt Kernel-VXLAN auf UDP 14789 mit expliziten
-            Peer-Routen, Nachbarn und Forwarding-Einträgen. Der Sidecar
+            Peer-Routen sowie bei Bedarf installierten Nachbarn und
+            Forwarding-Einträgen für kontaktierte IPv4-Peers. Der Sidecar
             beantwortet die Adressauflösung lokal, statt sie an jeden Pod zu
             fluten.
           </div>

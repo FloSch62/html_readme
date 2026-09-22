@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Measuring large topology startup: the stages, startup batches, controller changes, and the measured 1,000-device result. English and German, with the complete original guide."
+      content="Scale Clabernetes labs: capacity calculator, startup batches, per-host boot limits, Mermaid diagrams and measured BusyBox and NOS results. English and German."
     />
     <title>Scaling &amp; performance · Clabernetes explained</title>
     <link rel="stylesheet" href="explainer.css" />
@@ -20,24 +20,24 @@
           ><span class="brand-label">scaling explained</span></a
         >
         <nav class="topnav" aria-label="Page sections">
-          <a href="#results"
-            ><span data-lang="en">Results</span
-            ><span data-lang="de">Ergebnisse</span></a
-          ><a href="#stages"
-            ><span data-lang="en">Startup stages</span
-            ><span data-lang="de">Startphasen</span></a
+          <a href="#capacity"
+            ><span data-lang="en">Capacity</span
+            ><span data-lang="de">Kapazität</span></a
           ><a href="#batches"
             ><span data-lang="en">Batches</span
             ><span data-lang="de">Batches</span></a
-          ><a href="#controller"
-            ><span data-lang="en">Controller</span
-            ><span data-lang="de">Controller</span></a
-          ><a href="#evidence"
-            ><span data-lang="en">Evidence</span
-            ><span data-lang="de">Messungen</span></a
+          ><a href="#host-boots"
+            ><span data-lang="en">Boots</span
+            ><span data-lang="de">Host-Boots</span></a
+          ><a href="#pressure"
+            ><span data-lang="en">Pressure</span
+            ><span data-lang="de">Systemlast</span></a
+          ><a href="#new-results"
+            ><span data-lang="en">Runs</span
+            ><span data-lang="de">Neue Läufe</span></a
           ><a href="#measure"
-            ><span data-lang="en">Measure it</span
-            ><span data-lang="de">Selbst messen</span></a
+            ><span data-lang="en">Measure</span
+            ><span data-lang="de">Messen</span></a
           ><a href="#original"
             ><span data-lang="en">Full guide</span
             ><span data-lang="de">Original</span></a
@@ -83,32 +83,1147 @@
       <div class="hero">
         <span class="eyebrow">Clabernetes · September 2026</span>
         <h1 data-lang="en">
-          1,000 devices.<br /><span>Where does the time go?</span>
+          Scale the lab.<br /><span>Know the limits.</span>
         </h1>
         <h1 data-lang="de">
-          1.000 Geräte.<br /><span>Wo bleibt die Zeit?</span>
+          Das Lab skalieren.<br /><span>Grenzen kennen.</span>
         </h1>
         <p class="hero-lead" data-lang="en">
-          A large topology can have enough worker CPU and memory and still start
-          slowly. Follow the path from a device plan to a ready lab, and see
-          what changed in the measured 1,000-device run.
+          From a small lab to thousands of devices: size the cluster, control
+          startup bursts, and measure the stage that actually limits progress.
+          Current behavior is checked against local revision
+          <code>08b94a3</code>, 22 September 2026.
         </p>
         <p class="hero-lead" data-lang="de">
-          Eine große Topologie kann trotz genug Worker-CPU und Arbeitsspeicher
-          langsam starten. Wir folgen dem Weg vom Geräteplan zum fertigen Lab
-          und zeigen, was sich im gemessenen Lauf mit 1.000 Geräten verändert
-          hat.
+          Vom kleinen Lab zu Tausenden Geräten: den Cluster dimensionieren,
+          Startwellen begrenzen und die Phase messen, die den Fortschritt
+          tatsächlich bremst. Aktuelles Verhalten geprüft am lokalen Stand
+          <code>08b94a3</code>, 22. September 2026.
         </p>
         <div class="pill-row">
-          <span class="pill">1,000 BusyBox devices</span
-          ><span class="pill">7 Kubernetes workers</span
-          ><span class="pill">14 planner workers</span
-          ><span class="pill">Dual-stack Calico</span>
+          <span class="pill">EN / DE</span
+          ><span class="pill">Capacity · admission · boot</span
+          ><span class="pill">1,900-device ring verified</span
+          ><span class="pill">Routed NOS labs</span>
         </div>
       </div>
+      <section id="capacity">
+        <div class="section-head">
+          <div class="section-index">Capacity</div>
+          <div>
+            <h2 data-lang="en">Start with your topology. Size the cluster.</h2>
+            <h2 data-lang="de">Von der Topologie zur Clustergröße.</h2>
+          </div>
+        </div>
+        <p data-lang="en">
+          There are three separate questions:
+          <strong
+            >will the Pods fit, can the hosts boot them safely, and how much
+            traffic can the running lab sustain?</strong
+          >
+          A scheduler estimate answers only the first. A BusyBox result is not a
+          sizing rule for SR Linux, SR-SIM, FRR or a virtual router.
+        </p>
+        <p data-lang="de">
+          Es gibt drei getrennte Fragen:
+          <strong
+            >Passen die Pods, können die Hosts sie zuverlässig booten und wie
+            viel Traffic trägt das laufende Lab?</strong
+          >
+          Eine Scheduler-Schätzung beantwortet nur die erste. Ein
+          BusyBox-Ergebnis ist keine Dimensionierungsregel für SR Linux, SR-SIM,
+          FRR oder einen virtuellen Router.
+        </p>
+        <div class="diagram" data-lang="en">
+          <div class="diagram-title">
+            <b>The smallest budget sets the first ceiling</b>
+          </div>
+          <pre class="mermaid">
+flowchart LR
+ A[Eligible hosts] --&gt; B[Free Pod slots]
+ A --&gt; C[CPU and memory requests]
+ A --&gt; D[Storage and placement]
+ B --&gt; E[Scheduling ceiling]
+ C --&gt; E
+ D --&gt; E
+ E --&gt; F[Check addresses and Services]
+ F --&gt; G[Measure boot and steady load]
+ G --&gt; H[Validated operating size]</pre
+          >
+        </div>
+        <div class="diagram" data-lang="de">
+          <div class="diagram-title">
+            <b>Das kleinste Budget setzt die erste Grenze</b>
+          </div>
+          <pre class="mermaid">
+flowchart LR
+ A[Geeignete Hosts] --&gt; B[Freie Pod-Slots]
+ A --&gt; C[CPU- und RAM-Requests]
+ A --&gt; D[Storage und Platzierung]
+ B --&gt; E[Scheduling-Grenze]
+ C --&gt; E
+ D --&gt; E
+ E --&gt; F[Adressen und Services prüfen]
+ F --&gt; G[Boot und Dauerlast messen]
+ G --&gt; H[Validierte Betriebsgröße]</pre
+          >
+        </div>
+        <div class="grid-2">
+          <article class="card">
+            <h3 data-lang="en">Count the whole Pod</h3>
+            <h3 data-lang="de">Den ganzen Pod rechnen</h3>
+            <p data-lang="en">
+              For each eligible host, subtract existing requests and reserve
+              operating headroom from allocatable CPU, memory and Pod slots.
+              Include planner Pods, system DaemonSets and c9s helpers. Use the
+              rendered Pod’s effective request, including init/sidecar
+              scheduling rules and Pod overhead; the application request alone
+              is insufficient.
+            </p>
+            <p data-lang="de">
+              Pro geeignetem Host bestehende Requests abziehen und
+              Betriebsreserve von Allocatable-CPU, RAM und Pod-Slots
+              zurückhalten. Planner-Pods, System-DaemonSets und c9s-Helfer
+              einrechnen. Den effektiven Request des gerenderten Pods verwenden,
+              einschließlich Init-/Sidecar-Scheduling und Pod-Overhead; der
+              Anwendungs-Request allein reicht nicht.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">Check placement and storage</h3>
+            <h3 data-lang="de">Platzierung und Storage prüfen</h3>
+            <p data-lang="en">
+              c9s softly spreads device Pods across hosts within a namespace.
+              Resource availability, affinity and taints can still concentrate
+              them. Check image disk space, writable layers, runtime binaries,
+              PVC capacity and attachment limits. Lowering requests changes
+              scheduling; it does not lower real RAM usage or boot CPU demand.
+            </p>
+            <p data-lang="de">
+              c9s bevorzugt eine Verteilung der Geräte-Pods eines Namespace auf
+              mehrere Hosts. Ressourcen, Affinität und Taints können sie
+              trotzdem konzentrieren. Platz für Images, Schreibschichten,
+              Runtime-Binaries sowie PVC-Kapazität und Attachment-Limits prüfen.
+              Kleinere Requests ändern das Scheduling, aber weder echten
+              RAM-Verbrauch noch CPU-Bedarf beim Boot.
+            </p>
+          </article>
+        </div>
+        <h3 data-lang="en">How big must my cluster be for this topology?</h3>
+        <h3 data-lang="de">
+          Wie groß muss mein Cluster für diese Topologie sein?
+        </h3>
+        <p data-lang="en">
+          Count <strong>all device Pods</strong>: leaves, spines, superspines,
+          traffic generators and clients. A 100-router Clos with four clients
+          needs 104 device Pods. One shared-network group occupies one Pod.
+          Links add controller, interface and traffic work, but do not each
+          require another Pod.
+        </p>
+        <p data-lang="de">
+          <strong>Alle Geräte-Pods</strong> zählen: Leaves, Spines, Superspines,
+          Traffic-Generatoren und Clients. Ein Clos mit 100 Routern und vier
+          Clients braucht 104 Geräte-Pods. Eine Gruppe mit gemeinsamem Netzwerk
+          belegt einen Pod. Links verursachen zusätzliche Controller-,
+          Interface- und Traffic-Arbeit, aber nicht jeweils einen weiteren Pod.
+        </p>
+        <p data-lang="en">
+          The calculator starts with the
+          <a
+            href="https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/"
+            >Kubernetes default of 110 Pods per worker</a
+          >. It reserves ten slots per worker for system Pods, c9s and planners,
+          leaving 100 for lab devices. That reserve is an editable example;
+          count the real Pods on your cluster. Managed services and CNIs may
+          expose a different limit.
+        </p>
+        <p data-lang="de">
+          Der Rechner startet mit dem
+          <a
+            href="https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/"
+            >Kubernetes-Standard von 110 Pods pro Worker</a
+          >. Zehn Slots pro Worker sind beispielhaft für System-Pods, c9s und
+          Planner reserviert; 100 bleiben für Lab-Geräte. Die Reserve ist
+          veränderbar: die echten Pods des Clusters zählen. Managed Services und
+          CNIs können andere Limits vorgeben.
+        </p>
+        <form class="capacity-calculator" id="capacityCalculator">
+          <div class="calc-heading">
+            <div>
+              <span class="eyebrow"
+                ><span data-lang="en">Topology → cluster</span
+                ><span data-lang="de">Topologie → Cluster</span></span
+              >
+              <h3>
+                <span data-lang="en">Plan your lab</span
+                ><span data-lang="de">Dein Lab planen</span>
+              </h3>
+              <p>
+                <span data-lang="en"
+                  >Choose your devices and worker size. See the budget update as
+                  you go.</span
+                ><span data-lang="de"
+                  >Geräte und Worker-Größe wählen. Das Budget passt sich direkt
+                  an.</span
+                >
+              </p>
+            </div>
+            <button type="reset" class="calc-reset">
+              <span data-lang="en">Reset</span
+              ><span data-lang="de">Zurücksetzen</span>
+            </button>
+          </div>
+          <div class="calc-layout">
+            <div class="calc-config">
+              <fieldset class="calc-step-panel">
+                <legend>
+                  <span class="calc-step">01</span
+                  ><span data-lang="en">Your topology</span
+                  ><span data-lang="de">Deine Topologie</span>
+                </legend>
+                <div class="calc-mode" role="group" aria-label="Topology input">
+                  <label
+                    ><input
+                      type="radio"
+                      name="capacityMode"
+                      value="count"
+                      checked
+                    /><span data-lang="en">Device count</span
+                    ><span data-lang="de">Geräteanzahl</span></label
+                  ><label
+                    ><input
+                      type="radio"
+                      name="capacityMode"
+                      value="clos"
+                    /><span data-lang="en">Grouped Clos</span
+                    ><span data-lang="de">Gruppiertes Clos</span></label
+                  >
+                </div>
+                <div id="calcCountFields">
+                  <div
+                    class="calc-quick-sizes"
+                    role="group"
+                    aria-label="Router count presets"
+                  >
+                    <button
+                      type="button"
+                      data-router-count="20"
+                      aria-pressed="false"
+                    >
+                      20</button
+                    ><button
+                      type="button"
+                      data-router-count="100"
+                      aria-pressed="true"
+                    >
+                      100</button
+                    ><button
+                      type="button"
+                      data-router-count="200"
+                      aria-pressed="false"
+                    >
+                      200</button
+                    ><button
+                      type="button"
+                      data-router-count="1000"
+                      aria-pressed="false"
+                    >
+                      1,000
+                    </button>
+                  </div>
+                  <label class="calc-field" for="capDevices"
+                    ><span data-lang="en">Routers / lab devices</span
+                    ><span data-lang="de">Router / Lab-Geräte</span
+                    ><input
+                      id="capDevices"
+                      name="capDevices"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value="100"
+                      required
+                      max="1000000"
+                  /></label>
+                </div>
+                <div id="calcClosFields" class="calc-input-grid" hidden>
+                  <label class="calc-field" for="capGroups"
+                    ><span data-lang="en">Fabric groups</span
+                    ><span data-lang="de">Fabric-Gruppen</span
+                    ><input
+                      id="capGroups"
+                      name="capGroups"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value="4"
+                      required
+                      max="1000000" /></label
+                  ><label class="calc-field" for="capLeaves"
+                    ><span data-lang="en">Leaves per group</span
+                    ><span data-lang="de">Leaves pro Gruppe</span
+                    ><input
+                      id="capLeaves"
+                      name="capLeaves"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value="22"
+                      required
+                      max="1000000" /></label
+                  ><label class="calc-field" for="capSpines"
+                    ><span data-lang="en">Spines per group</span
+                    ><span data-lang="de">Spines pro Gruppe</span
+                    ><input
+                      id="capSpines"
+                      name="capSpines"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value="2"
+                      required
+                      max="1000000" /></label
+                  ><label class="calc-field" for="capSupers"
+                    ><span data-lang="en">Superspines in total</span
+                    ><span data-lang="de">Superspines insgesamt</span
+                    ><input
+                      id="capSupers"
+                      name="capSupers"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value="4"
+                      required
+                      max="1000000"
+                  /></label>
+                </div>
+                <div class="calc-clients">
+                  <label class="calc-field" for="capClients"
+                    ><span data-lang="en"
+                      >Additional clients / traffic generators</span
+                    ><span data-lang="de"
+                      >Zusätzliche Clients / Traffic-Generatoren</span
+                    ><input
+                      id="capClients"
+                      name="capClients"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value="4"
+                      required
+                      max="1000000"
+                  /></label>
+                </div>
+                <p class="calc-hint" id="calcTopologyHint"></p>
+              </fieldset>
+              <fieldset class="calc-step-panel">
+                <legend>
+                  <span class="calc-step">02</span
+                  ><span data-lang="en">Device software</span
+                  ><span data-lang="de">Gerätesoftware</span>
+                </legend>
+                <div class="calc-profile-grid">
+                  <label class="calc-choice"
+                    ><input
+                      type="radio"
+                      name="capacityProfile"
+                      value="srl"
+                      checked
+                    /><span class="calc-choice-body"
+                      ><strong>SR Linux</strong
+                      ><span class="calc-choice-description"
+                        ><span data-lang="en">Container NOS</span
+                        ><span data-lang="de">Container-NOS</span></span
+                      ><span class="calc-choice-value"
+                        >0.5 CPU · 2 GiB</span
+                      ></span
+                    ></label
+                  ><label class="calc-choice"
+                    ><input
+                      type="radio"
+                      name="capacityProfile"
+                      value="frr"
+                    /><span class="calc-choice-body"
+                      ><strong>FRR</strong
+                      ><span class="calc-choice-description"
+                        ><span data-lang="en">Linux routing</span
+                        ><span data-lang="de">Linux-Routing</span></span
+                      ><span class="calc-choice-value"
+                        >0.1 CPU · 256 MiB</span
+                      ></span
+                    ></label
+                  ><label class="calc-choice"
+                    ><input
+                      type="radio"
+                      name="capacityProfile"
+                      value="srsim"
+                    /><span class="calc-choice-body"
+                      ><strong>SR-SIM</strong
+                      ><span class="calc-choice-description"
+                        ><span data-lang="en">SR OS simulator</span
+                        ><span data-lang="de">SR-OS-Simulator</span></span
+                      ><span class="calc-choice-value"
+                        >0.5 CPU · 4 GiB</span
+                      ></span
+                    ></label
+                  ><label class="calc-choice"
+                    ><input
+                      type="radio"
+                      name="capacityProfile"
+                      value="busybox"
+                    /><span class="calc-choice-body"
+                      ><strong>BusyBox</strong
+                      ><span class="calc-choice-description"
+                        ><span data-lang="en">Lightweight Linux</span
+                        ><span data-lang="de">Schlankes Linux</span></span
+                      ><span class="calc-choice-value"
+                        >0.01 CPU · 32 MiB</span
+                      ></span
+                    ></label
+                  >
+                </div>
+                <p class="calc-hint" id="calcProfileHint"></p>
+                <p class="calc-hint">
+                  <span data-lang="en"
+                    >Recorded request budgets, not peak usage. Adjust for your
+                    image, configuration and traffic in the settings
+                    below.</span
+                  ><span data-lang="de"
+                    >Aufgezeichnete Request-Budgets, keine Spitzenlast. Unten
+                    für Image, Konfiguration und Traffic anpassen.</span
+                  >
+                </p>
+              </fieldset>
+              <fieldset class="calc-step-panel">
+                <legend>
+                  <span class="calc-step">03</span
+                  ><span data-lang="en">Worker hardware</span
+                  ><span data-lang="de">Worker-Hardware</span>
+                </legend>
+                <div class="calc-worker-grid">
+                  <label class="calc-choice"
+                    ><input
+                      type="radio"
+                      name="capacityHardware"
+                      value="small" /><span class="calc-choice-body"
+                      ><strong>8 vCPU</strong><span>32 GiB RAM</span
+                      ><span
+                        class="calc-choice-value"
+                        id="calcPreview-small"
+                      ></span></span></label
+                  ><label class="calc-choice"
+                    ><input
+                      type="radio"
+                      name="capacityHardware"
+                      value="medium"
+                      checked /><span class="calc-choice-body"
+                      ><strong>16 vCPU</strong><span>64 GiB RAM</span
+                      ><span
+                        class="calc-choice-value"
+                        id="calcPreview-medium"
+                      ></span></span></label
+                  ><label class="calc-choice"
+                    ><input
+                      type="radio"
+                      name="capacityHardware"
+                      value="large" /><span class="calc-choice-body"
+                      ><strong>32 vCPU</strong><span>128 GiB RAM</span
+                      ><span
+                        class="calc-choice-value"
+                        id="calcPreview-large"
+                      ></span></span
+                  ></label>
+                </div>
+                <label class="calc-custom-choice"
+                  ><input
+                    type="radio"
+                    name="capacityHardware"
+                    value="custom"
+                  /><span data-lang="en">Use my own worker size</span
+                  ><span data-lang="de"
+                    >Eigene Worker-Größe verwenden</span
+                  ></label
+                >
+                <div id="calcCustomHardware" class="calc-input-grid" hidden>
+                  <label class="calc-field" for="capCPU"
+                    ><span data-lang="en">vCPU per worker</span
+                    ><span data-lang="de">vCPU pro Worker</span
+                    ><input
+                      id="capCPU"
+                      name="capCPU"
+                      type="number"
+                      min="0.001"
+                      step="any"
+                      value="16"
+                      required /></label
+                  ><label class="calc-field" for="capRAM"
+                    ><span data-lang="en">RAM per worker · GiB</span
+                    ><span data-lang="de">RAM pro Worker · GiB</span
+                    ><input
+                      id="capRAM"
+                      name="capRAM"
+                      type="number"
+                      min="0.001"
+                      step="any"
+                      value="64"
+                      required
+                  /></label>
+                </div>
+                <p class="calc-hint" id="calcHardwareHint"></p>
+              </fieldset>
+              <details class="calc-advanced" id="calcAdvanced">
+                <summary>
+                  <span data-lang="en">Resource budgets & cluster reserves</span
+                  ><span data-lang="de"
+                    >Ressourcenbudgets & Cluster-Reserve</span
+                  >
+                </summary>
+                <div class="calc-advanced-body">
+                  <p class="calc-hint">
+                    <span data-lang="en"
+                      >Use these when your cluster or workload differs. Reserves
+                      cover the OS, Kubernetes, planners, helpers, other
+                      workloads and operating headroom.</span
+                    ><span data-lang="de"
+                      >Für abweichende Cluster oder Workloads anpassen. Reserven
+                      decken Betriebssystem, Kubernetes, Planner, Helfer, andere
+                      Workloads und Betriebsreserve ab.</span
+                    >
+                  </p>
+                  <fieldset>
+                    <legend>
+                      <span class="calc-step">A</span
+                      ><span data-lang="en">Per-device budget</span
+                      ><span data-lang="de">Budget pro Gerät</span>
+                    </legend>
+                    <div class="calc-input-grid">
+                      <label class="calc-field" for="capPodCPU"
+                        ><span data-lang="en">Router / device · vCPU</span
+                        ><span data-lang="de">Router / Gerät · vCPU</span
+                        ><input
+                          id="capPodCPU"
+                          name="capPodCPU"
+                          type="number"
+                          min="0.001"
+                          step="any"
+                          value="0.5"
+                          required /></label
+                      ><label class="calc-field" for="capPodRAM"
+                        ><span data-lang="en">Router / device · GiB</span
+                        ><span data-lang="de">Router / Gerät · GiB</span
+                        ><input
+                          id="capPodRAM"
+                          name="capPodRAM"
+                          type="number"
+                          min="0.001"
+                          step="any"
+                          value="2"
+                          required /></label
+                      ><label class="calc-field" for="capClientCPU"
+                        ><span data-lang="en">Client · vCPU</span
+                        ><span data-lang="de">Client · vCPU</span
+                        ><input
+                          id="capClientCPU"
+                          name="capClientCPU"
+                          type="number"
+                          min="0.001"
+                          step="any"
+                          value="0.1"
+                          required /></label
+                      ><label class="calc-field" for="capClientRAM"
+                        ><span data-lang="en">Client · GiB</span
+                        ><span data-lang="de">Client · GiB</span
+                        ><input
+                          id="capClientRAM"
+                          name="capClientRAM"
+                          type="number"
+                          min="0.001"
+                          step="any"
+                          value="0.125"
+                          required
+                      /></label>
+                    </div>
+                  </fieldset>
+                  <fieldset>
+                    <legend>
+                      <span class="calc-step">B</span
+                      ><span data-lang="en">Reserve on each worker</span
+                      ><span data-lang="de">Reserve auf jedem Worker</span>
+                    </legend>
+                    <div class="calc-input-grid">
+                      <label class="calc-field" for="capMaxPods"
+                        ><span data-lang="en">Maximum Pods</span
+                        ><span data-lang="de">Maximale Pods</span
+                        ><input
+                          id="capMaxPods"
+                          name="capMaxPods"
+                          type="number"
+                          min="1"
+                          step="1"
+                          value="110"
+                          required
+                          max="1000000" /></label
+                      ><label class="calc-field" for="capReservedPods"
+                        ><span data-lang="en">Reserved Pod slots</span
+                        ><span data-lang="de">Reservierte Pod-Slots</span
+                        ><input
+                          id="capReservedPods"
+                          name="capReservedPods"
+                          type="number"
+                          min="0"
+                          step="1"
+                          value="10"
+                          required
+                          max="1000000" /></label
+                      ><label class="calc-field" for="capReservedCPU"
+                        ><span data-lang="en">Reserved vCPU</span
+                        ><span data-lang="de">Reservierte vCPU</span
+                        ><input
+                          id="capReservedCPU"
+                          name="capReservedCPU"
+                          type="number"
+                          min="0"
+                          step="any"
+                          value="2"
+                          required /></label
+                      ><label class="calc-field" for="capReservedRAM"
+                        ><span data-lang="en">Reserved RAM · GiB</span
+                        ><span data-lang="de">Reservierter RAM · GiB</span
+                        ><input
+                          id="capReservedRAM"
+                          name="capReservedRAM"
+                          type="number"
+                          min="0"
+                          step="any"
+                          value="8"
+                          required
+                      /></label>
+                    </div>
+                  </fieldset>
+                  <p class="calc-hint">
+                    <span data-lang="en"
+                      >Selecting worker hardware resets CPU/RAM reserves to
+                      12.5%. Pod limits and device budgets stay as
+                      configured.</span
+                    ><span data-lang="de"
+                      >Die Hardware-Auswahl setzt CPU-/RAM-Reserven auf 12,5 %
+                      zurück. Pod-Limits und Gerätebudgets bleiben wie
+                      eingestellt.</span
+                    >
+                  </p>
+                </div>
+              </details>
+            </div>
+            <aside
+              class="calc-estimate"
+              id="calcEstimate"
+              aria-label="Cluster estimate"
+            >
+              <span class="calc-result-label"
+                ><span data-lang="en">Your worker estimate</span
+                ><span data-lang="de">Deine Worker-Schätzung</span></span
+              >
+              <p id="capacityError" class="calc-error" role="status" hidden></p>
+              <div id="calcValidResult">
+                <output
+                  id="capacityResult"
+                  aria-live="polite"
+                  aria-atomic="true"
+                ></output>
+                <p id="capacityDetail" class="calc-result-subtitle"></p>
+                <div class="calc-total-grid">
+                  <div>
+                    <strong id="calcTotalCPU"></strong
+                    ><span
+                      ><span data-lang="en">total vCPU</span
+                      ><span data-lang="de">vCPU insgesamt</span></span
+                    >
+                  </div>
+                  <div>
+                    <strong id="calcTotalRAM"></strong
+                    ><span
+                      ><span data-lang="en">total GiB RAM</span
+                      ><span data-lang="de">GiB RAM insgesamt</span></span
+                    >
+                  </div>
+                </div>
+                <div class="calc-bottleneck" id="calcBottleneck"></div>
+                <h4>
+                  <span data-lang="en">Where the budget goes</span
+                  ><span data-lang="de">Wofür das Budget reicht</span>
+                </h4>
+                <p class="calc-hint">
+                  <span data-lang="en"
+                    >Across the estimated workers. These are planned budgets,
+                    not live utilization.</span
+                  ><span data-lang="de"
+                    >Über alle geschätzten Worker. Geplante Budgets, keine
+                    Live-Auslastung.</span
+                  >
+                </p>
+                <div id="calcBudgetBars"></div>
+                <div class="calc-legend">
+                  <span
+                    ><i class="device"></i><span data-lang="en">Devices</span
+                    ><span data-lang="de">Geräte</span></span
+                  ><span
+                    ><i class="reserved"></i><span data-lang="en">Reserved</span
+                    ><span data-lang="de">Reserviert</span></span
+                  ><span
+                    ><i class="free"></i><span data-lang="en">Unallocated</span
+                    ><span data-lang="de">Unverplant</span></span
+                  >
+                </div>
+                <details class="calc-placement">
+                  <summary>
+                    <span data-lang="en">How the devices fit</span
+                    ><span data-lang="de">Wie die Geräte verteilt werden</span>
+                  </summary>
+                  <div id="calcPlacement"></div>
+                </details>
+                <p class="calc-next" id="calcNextStep"></p>
+              </div>
+              <p class="calc-footnote">
+                <span data-lang="en"
+                  >Request-based planning estimate. Add control-plane and
+                  failure capacity separately. Validate boot peaks, disk,
+                  addressing and traffic before using this as an operating
+                  target.</span
+                ><span data-lang="de"
+                  >Request-basierte Planungsschätzung. Control Plane und
+                  Ausfallreserve separat ergänzen. Boot-Spitzen, Platte,
+                  Adressen und Traffic vor dem Einsatz als Betriebsziel
+                  prüfen.</span
+                >
+              </p>
+            </aside>
+          </div>
+          <a class="calc-mobile-summary" href="#calcEstimate"
+            ><strong id="calcMobileEstimate"></strong
+            ><span data-lang="en">View budget ↓</span
+            ><span data-lang="de">Budget ansehen ↓</span></a
+          >
+        </form>
+        <p data-lang="en">
+          The default worker example is
+          <strong>16 CPU cores / 64 GiB RAM</strong>, of which 14 CPU / 56 GiB
+          are available to device Pods after the example reserve. Kubernetes has
+          no default worker hardware size. Reserve includes the difference
+          between hardware and allocatable resources, existing workloads and
+          operating headroom. If you enter allocatable values instead, do not
+          subtract the OS reservation twice.
+        </p>
+        <p data-lang="de">
+          Das Standardbeispiel ist ein Worker mit
+          <strong>16 CPU-Kernen / 64 GiB RAM</strong>; nach der Beispielreserve
+          bleiben 14 CPU / 56 GiB für Geräte-Pods. Kubernetes hat keine
+          Standard-Worker-Hardwaregröße. Die Reserve umfasst
+          Hardware-zu-Allocatable-Differenz, vorhandene Workloads und
+          Betriebsreserve. Bei Eingabe von Allocatable-Werten die
+          Betriebssystemreserve nicht doppelt abziehen.
+        </p>
+        <div class="callout" data-lang="en">
+          <strong
+            >These presets are recorded requests, not measured peak
+            requirements.</strong
+          >
+          The SR Linux run used 0.5 CPU / 2 GiB per router. FRR leaves used 0.05
+          CPU / 128 MiB and fabric routers 0.1 CPU / 256 MiB; SR-SIM leaves used
+          0.25 CPU / 3 GiB and fabric routers 0.5 CPU / 4 GiB. The calculator
+          applies the larger role budget to every router for those mixed Clos
+          examples; clients have a separate budget of 0.1 CPU / 128 MiB. Helpers
+          in the inspected Pods had no explicit requests but still consumed
+          resources. Add their use and boot/traffic headroom to your budgets;
+          increase budgets if measured usage exceeds requests.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong
+            >Die Presets sind aufgezeichnete Requests, keine gemessenen
+            Spitzenanforderungen.</strong
+          >
+          SR Linux nutzte 0,5 CPU / 2 GiB pro Router. FRR-Leaves nutzten 0,05
+          CPU / 128 MiB, Fabric-Router 0,1 CPU / 256 MiB; SR-SIM-Leaves 0,25 CPU
+          / 3 GiB, Fabric-Router 0,5 CPU / 4 GiB. Für diese gemischten
+          Clos-Beispiele rechnet der Rechner jeden Router mit dem größeren
+          Rollenbudget; Clients haben separat 0,1 CPU / 128 MiB. Helfer in den
+          geprüften Pods hatten keine expliziten Requests, verbrauchten aber
+          Ressourcen. Ihren Verbrauch sowie Boot-/Traffic-Reserve einrechnen und
+          Budgets erhöhen, wenn gemessener Verbrauch die Requests übersteigt.
+        </div>
+        <h3 data-lang="en">
+          20, 100, 200 or 1,000+ devices: a starting estimate
+        </h3>
+        <h3 data-lang="de">
+          20, 100, 200 oder 1.000+ Geräte: eine erste Schätzung
+        </h3>
+        <p data-lang="en">
+          Number of identical <strong>16-CPU / 64-GiB workers</strong> using the
+          default reserves above and 110 maxPods. Counts are total device Pods,
+          including clients, with the same column budget applied to every Pod.
+          The calculator above can budget clients separately. These are computed
+          request-based estimates, not measured cluster configurations or
+          performance guarantees.
+        </p>
+        <p data-lang="de">
+          Anzahl identischer <strong>16-CPU-/64-GiB-Worker</strong> mit den
+          obigen Standardreserven und maxPods 110. Gezählt werden alle
+          Geräte-Pods einschließlich Clients, alle mit dem jeweiligen
+          Spaltenbudget. Der Rechner oben kann Clients separat budgetieren. Das
+          sind berechnete Request-basierte Schätzungen, keine gemessenen
+          Clusterkonfigurationen oder Leistungsgarantien.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Total device Pods / Alle Geräte-Pods</th>
+                <th>BusyBox<br />0.01 CPU / 32 MiB</th>
+                <th>FRR budget<br />0.1 CPU / 256 MiB</th>
+                <th>SR Linux<br />0.5 CPU / 2 GiB</th>
+                <th>SR-SIM budget<br />0.5 CPU / 4 GiB</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>20</td>
+                <td>1</td>
+                <td>1</td>
+                <td>1</td>
+                <td>2</td>
+              </tr>
+              <tr>
+                <td>100</td>
+                <td>1</td>
+                <td>1</td>
+                <td>4</td>
+                <td>8</td>
+              </tr>
+              <tr>
+                <td>200</td>
+                <td>2</td>
+                <td>2</td>
+                <td>8</td>
+                <td>15</td>
+              </tr>
+              <tr>
+                <td>1000</td>
+                <td>10</td>
+                <td>10</td>
+                <td>36</td>
+                <td>72</td>
+              </tr>
+              <tr>
+                <td>1900</td>
+                <td>19</td>
+                <td>19</td>
+                <td>68</td>
+                <td>136</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p data-lang="en">
+          Example: 100 SR Linux routers plus four additional clients still
+          yields <strong>four workers</strong> at 0.5 CPU / 2 GiB per router and
+          0.1 CPU / 128 MiB per client: 64 CPU cores and 256 GiB installed
+          across the workers. For BusyBox or the FRR profile, 104 Pods needs
+          <strong>two workers</strong> because only 100 lab slots per worker
+          remain. Add the control plane separately; this estimate includes no
+          spare worker for failures and predicts no startup time or forwarding
+          throughput.
+        </p>
+        <p data-lang="de">
+          Beispiel: 100 SR-Linux-Router plus vier zusätzliche Clients ergeben
+          weiterhin <strong>vier Worker</strong> mit 0,5 CPU / 2 GiB pro Router
+          und 0,1 CPU / 128 MiB pro Client: insgesamt 64 CPU-Kerne und 256 GiB
+          installierter Worker-RAM. BusyBox oder das FRR-Profil benötigen für
+          104 Pods <strong>zwei Worker</strong>, weil pro Worker nur 100
+          Lab-Slots bleiben. Die Control Plane separat einplanen; die Schätzung
+          enthält keinen Ausfall-Reserveworker und sagt weder Startzeit noch
+          Forwarding-Durchsatz voraus.
+        </p>
+        <p data-lang="en">
+          <code
+            >devices per worker = min(usable Pod slots, floor(usable CPU /
+            device CPU), floor(usable RAM / device RAM))</code
+          >; <code>workers = ceil(device Pods / devices per worker)</code>. For
+          mixed worker sizes or asymmetric devices, calculate each role and host
+          separately and check placement. A single Pod must fit one eligible
+          worker; spare RAM on another worker cannot make it fit.
+        </p>
+        <p data-lang="de">
+          <code
+            >Geräte pro Worker = min(nutzbare Pod-Slots, floor(nutzbare CPU /
+            Geräte-CPU), floor(nutzbarer RAM / Geräte-RAM))</code
+          >; <code>Worker = ceil(Geräte-Pods / Geräte pro Worker)</code>. Bei
+          unterschiedlichen Workern oder Geräteklassen jede Rolle und jeden Host
+          separat rechnen und Platzierung prüfen. Ein einzelner Pod muss auf
+          einen geeigneten Worker passen; freier RAM auf einem anderen Worker
+          hilft dabei nicht.
+        </p>
+        <h3 data-lang="en">What cluster sizes have actually been tested?</h3>
+        <h3 data-lang="de">
+          Welche Clustergrößen wurden tatsächlich getestet?
+        </h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Recorded workload / Aufgezeichneter Workload</th>
+                <th>
+                  Worker hardware and Pod ceiling / Hardware und Pod-Limit
+                </th>
+                <th>What it establishes / Was es belegt</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1,000 BusyBox</td>
+                <td>
+                  <span data-lang="en"
+                    >7 workers, each 64 CPU / about 189 GiB; maxPods 220. 14
+                    planners.</span
+                  ><span data-lang="de"
+                    >7 Worker, jeweils 64 CPU / etwa 189 GiB; maxPods 220. 14
+                    Planner.</span
+                  >
+                </td>
+                <td>
+                  <span data-lang="en"
+                    >Completed 1,000-device benchmark. Much larger hardware than
+                    the request estimate; does not prove that seven such
+                    machines are necessary.</span
+                  ><span data-lang="de"
+                    >Vollständiger 1.000-Geräte-Benchmark. Deutlich größere
+                    Hardware als die Request-Schätzung; kein Beleg, dass sieben
+                    solche Maschinen nötig sind.</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td>100 → 200 → 250 SR Linux; up to 325 SR-SIM; 400 FRR</td>
+                <td>
+                  <span data-lang="en"
+                    >The respective runs used the same two large workers: 80 CPU
+                    / about 250 GiB and 72 CPU / about 755 GiB. maxPods 1,000
+                    per host. These labs were tested separately.</span
+                  ><span data-lang="de"
+                    >Die jeweiligen Läufe nutzten dieselben zwei großen Worker:
+                    80 CPU / etwa 250 GiB und 72 CPU / etwa 755 GiB. maxPods
+                    1.000 pro Host. Diese Labs wurden getrennt getestet.</span
+                  >
+                </td>
+                <td>
+                  <span data-lang="en"
+                    >Recorded BGP and traffic validation, with run-specific
+                    restarts and limits below. These are dense-host results;
+                    they cannot be advertised as a default-110, two-worker
+                    cluster recipe.</span
+                  ><span data-lang="de"
+                    >Aufgezeichnete BGP-/Traffic-Prüfungen mit den unten
+                    genannten Restarts und Grenzen. Das sind Ergebnisse mit
+                    hoher Host-Dichte, keine Anleitung für zwei
+                    Standard-110-Worker.</span
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h3 data-lang="en">
+          Clos grows by fabric groups, not just by Pod count
+        </h3>
+        <h3 data-lang="de">
+          Clos wächst über Fabric-Gruppen, nicht nur über Pod-Zahlen
+        </h3>
+        <div class="diagram" data-lang="en">
+          <div class="diagram-title">
+            <b>Keep the fabric group repeatable; account for the upper tier</b>
+          </div>
+          <pre class="mermaid">
+flowchart TD
+ S[Superspine tier - check ports and routes] --&gt; A[Fabric group A - two spines]
+ S --&gt; B[Fabric group B - two spines]
+ S -.-&gt; C[Add another fabric group]
+ A --&gt; LA[Leaves - each linked to both group spines]
+ B --&gt; LB[Leaves - each linked to both group spines]
+ C --&gt; LC[More leaves and clients]
+ LA --&gt; CA[Client and traffic checks]
+ LB --&gt; CB[Client and traffic checks]
+ LC --&gt; CC[Client and traffic checks]</pre
+          >
+        </div>
+        <div class="diagram" data-lang="de">
+          <div class="diagram-title">
+            <b>Fabric-Gruppen wiederholen; die obere Ebene mitrechnen</b>
+          </div>
+          <pre class="mermaid">
+flowchart TD
+ S[Superspine-Ebene - Ports und Routen prüfen] --&gt; A[Fabric-Gruppe A - zwei Spines]
+ S --&gt; B[Fabric-Gruppe B - zwei Spines]
+ S -.-&gt; C[Weitere Fabric-Gruppe hinzufügen]
+ A --&gt; LA[Leaves - jeweils mit beiden Gruppen-Spines verbunden]
+ B --&gt; LB[Leaves - jeweils mit beiden Gruppen-Spines verbunden]
+ C --&gt; LC[Weitere Leaves und Clients]
+ LA --&gt; CA[Client- und Traffic-Prüfungen]
+ LB --&gt; CB[Client- und Traffic-Prüfungen]
+ LC --&gt; CC[Client- und Traffic-Prüfungen]</pre
+          >
+        </div>
+        <p data-lang="en">
+          The measured 100-router SR Linux Clos had
+          <strong>88 leaves, eight spines and four superspines</strong>, plus
+          four clients: 104 device Pods, 212 data links and 208 BGP sessions.
+          The 200-router version had 188 leaves, eight spines and four
+          superspines, plus four clients: 204 Pods and 412 links. The larger
+          leaf count already changes per-spine interface and routing work even
+          when the Kubernetes Pod count looks simple.
+        </p>
+        <p data-lang="de">
+          Das gemessene SR-Linux-Clos mit 100 Routern hatte
+          <strong>88 Leaves, acht Spines und vier Superspines</strong> sowie
+          vier Clients: 104 Geräte-Pods, 212 Datenlinks und 208 BGP-Sessions.
+          Die 200-Router-Version hatte 188 Leaves, acht Spines und vier
+          Superspines sowie vier Clients: 204 Pods und 412 Links. Mehr Leaves
+          ändern bereits die Interface- und Routing-Arbeit pro Spine, selbst
+          wenn die Kubernetes-Pod-Zahl einfach aussieht.
+        </p>
+        <p data-lang="en">
+          For a reusable horizontal scaling series, keep leaves per group,
+          uplinks, routing policy, advertised prefixes and traffic per device
+          fixed, then add groups and worker capacity. Check superspine port
+          limits and route scale as groups grow; a larger upper tier may be
+          needed. Count links, BGP endpoints and cross-worker traffic alongside
+          devices. A thousand BusyBox nodes does not validate a thousand-router
+          Clos.
+        </p>
+        <p data-lang="de">
+          Für eine wiederverwendbare horizontale Messreihe Leaves pro Gruppe,
+          Uplinks, Routing-Policy, angekündigte Präfixe und Traffic pro Gerät
+          konstant halten; dann Gruppen und Worker-Kapazität ergänzen. Mit
+          wachsenden Gruppen Superspine-Portgrenzen und Routenskalierung prüfen;
+          eine größere obere Ebene kann nötig sein. Links, BGP-Endpunkte und
+          Worker-übergreifenden Traffic neben Geräten zählen. Tausend
+          BusyBox-Nodes validieren kein Clos mit tausend Routern.
+        </p>
+        <div class="callout" data-lang="en">
+          <strong>Useful next measurements:</strong> fresh, equivalent Clos runs
+          near 20, 100, 200 and 1,000+ routers for each device kind, first at
+          maxPods 110. Record worker CPU/RAM/disk, CNI, c9s/planner settings,
+          boot peaks, steady usage, API health, BGP, loss and throughput at a
+          stated traffic load. Report expansion separately. That matrix would
+          turn these estimates into tested cluster recipes; it has not yet been
+          measured in full.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Nützliche nächste Messungen:</strong> frische, vergleichbare
+          Clos-Läufe nahe 20, 100, 200 und 1.000+ Routern pro Gerätetyp,
+          zunächst mit maxPods 110. Worker-CPU/RAM/Platte, CNI,
+          c9s-/Planner-Einstellungen, Boot-Spitzen, Dauerverbrauch,
+          API-Gesundheit, BGP, Verlust und Durchsatz bei definierter
+          Traffic-Last erfassen. Erweiterungen separat ausweisen. Diese Matrix
+          würde die Schätzungen in getestete Clusterrezepte verwandeln; sie ist
+          noch nicht vollständig gemessen.
+        </div>
+        <h3 data-lang="en">Three different address budgets</h3>
+        <h3 data-lang="de">Drei unterschiedliche Adressbudgets</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Network / Netz</th>
+                <th>What to reserve / Was einzuplanen ist</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Management overlay</td>
+                <td>
+                  <span data-lang="en"
+                    >The default /24 is too small for 1,000 devices. With
+                    ordinary IPv4 network/broadcast reservations and one
+                    gateway, a /22 offers at most 1,021 device addresses; a /21
+                    at most 2,045. Ranges, pinned addresses and other namespace
+                    members reduce free space.</span
+                  ><span data-lang="de"
+                    >Das Standard-/24 ist für 1.000 Geräte zu klein. Mit
+                    üblichen IPv4-Netz-/Broadcast-Reservierungen und einem
+                    Gateway bietet ein /22 höchstens 1.021 Geräteadressen, ein
+                    /21 höchstens 2.045. Ranges, feste Adressen und andere
+                    Namespace-Mitglieder verringern den freien Platz.</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td>Kubernetes Pod network</td>
+                <td>
+                  <span data-lang="en"
+                    >Check the CNI pools and each host’s address allocation
+                    independently, including both families in dual-stack.
+                    Raising maxPods creates no new addresses and adds no kubelet
+                    throughput.</span
+                  ><span data-lang="de"
+                    >CNI-Pools und Adressvergabe jedes Hosts separat prüfen, bei
+                    Dual-Stack für beide Familien. Mehr maxPods erzeugt weder
+                    neue Adressen noch zusätzlichen Kubelet-Durchsatz.</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td>Services / external access</td>
+                <td>
+                  <span data-lang="en"
+                    >Budget Service addresses, published ports and any NodePort
+                    or LoadBalancer capacity. Check the Services actually
+                    rendered; disable unneeded exposure using the supported lab
+                    policy.</span
+                  ><span data-lang="de"
+                    >Service-Adressen, veröffentlichte Ports und gegebenenfalls
+                    NodePort- oder LoadBalancer-Kapazität einplanen. Die
+                    tatsächlich gerenderten Services prüfen und unnötige
+                    Veröffentlichung über die unterstützte Lab-Policy
+                    abschalten.</span
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p data-lang="en">
+          Kubernetes references:
+          <a
+            href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"
+            >resource requests</a
+          >
+          and
+          <a
+            href="https://kubernetes.io/docs/concepts/workloads/pods/init-containers/#resource-sharing-within-containers"
+            >init-container accounting</a
+          >. c9s address policy:
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/node/directmanagement.go"
+            >management allocation</a
+          >.
+        </p>
+        <p data-lang="de">
+          Kubernetes-Referenzen:
+          <a
+            href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"
+            >Ressourcen-Requests</a
+          >
+          und
+          <a
+            href="https://kubernetes.io/docs/concepts/workloads/pods/init-containers/#resource-sharing-within-containers"
+            >Init-Container-Berechnung</a
+          >. c9s-Adressregeln:
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/node/directmanagement.go"
+            >Management-Allokation</a
+          >.
+        </p>
+      </section>
       <section id="results">
         <div class="section-head">
-          <div class="section-index">01 · Results</div>
+          <div class="section-index">Measured baseline · 21 September</div>
           <div>
             <h2 data-lang="en">A much shorter wait for the same lab.</h2>
             <h2 data-lang="de">Dasselbe Lab, deutlich weniger Wartezeit.</h2>
@@ -197,8 +1312,8 @@
             </div>
             <div class="measure-row">
               <div class="measure-label">
-                <span data-lang="en">New changes · batch 100</span
-                ><span data-lang="de">Neue Änderungen · Batch 100</span
+                <span data-lang="en">21 Sep follow-up · batch 100</span
+                ><span data-lang="de">Folgelauf 21. Sep · Batch 100</span
                 ><strong id="afterValue">314.9s</strong>
               </div>
               <div class="measure-track" aria-hidden="true">
@@ -234,7 +1349,7 @@
       </section>
       <section id="stages">
         <div class="section-head">
-          <div class="section-index">02 · Startup</div>
+          <div class="section-index">Startup stages</div>
           <div>
             <h2 data-lang="en">A plan is only the first part of startup.</h2>
             <h2 data-lang="de">Der Plan ist erst der Anfang des Starts.</h2>
@@ -247,6 +1362,40 @@
               Worker-Kapazität änderst.
             </p>
           </div>
+        </div>
+        <div class="diagram" data-lang="en">
+          <div class="diagram-title"><b>Two gates, two release signals</b></div>
+          <pre class="mermaid">
+flowchart TD
+ A[Complete Node and Link intent] --&gt; B[Config batch + optional Topology batch]
+ B --&gt; C[Plan or reuse plan]
+ C --&gt; D[Deployment - ReplicaSet - Pod]
+ D --&gt; E[Scheduling and sandbox]
+ E --&gt;|Sandbox ready| F[Next startup batch may enter]
+ E --&gt; G[Optional per-host startup gate]
+ G --&gt;|Both host limits allow| H[Prepare files and boot primary]
+ H --&gt;|Primary started true| I[Release one host boot slot]
+ H --&gt; J[Pod and c9s readiness]
+ J --&gt; K[BGP and traffic validation]</pre
+          >
+        </div>
+        <div class="diagram" data-lang="de">
+          <div class="diagram-title">
+            <b>Zwei Gates, zwei Freigabesignale</b>
+          </div>
+          <pre class="mermaid">
+flowchart TD
+ A[Vollständige Node- und Link-Definitionen] --&gt; B[Config-Batch + optionaler Topology-Batch]
+ B --&gt; C[Planen oder Plan wiederverwenden]
+ C --&gt; D[Deployment - ReplicaSet - Pod]
+ D --&gt; E[Scheduling und Sandbox]
+ E --&gt;|Sandbox bereit| F[Nächster Start-Batch darf folgen]
+ E --&gt; G[Optionales Startup-Gate pro Host]
+ G --&gt;|Beide Host-Limits erlauben es| H[Dateien vorbereiten und Primary booten]
+ H --&gt;|Primary started true| I[Einen Host-Boot-Slot freigeben]
+ H --&gt; J[Pod- und c9s-Bereitschaft]
+ J --&gt; K[BGP und Traffic validieren]</pre
+          >
         </div>
         <div class="step-list">
           <div class="step">
@@ -342,149 +1491,315 @@
       </section>
       <section id="batches">
         <div class="section-head">
-          <div class="section-index">03 · Batching</div>
+          <div class="section-index">Batches</div>
           <div>
-            <h2 data-lang="en">Let devices through in manageable groups.</h2>
+            <h2 data-lang="en">One installation queue, optional lab limits.</h2>
             <h2 data-lang="de">
-              Geräte in überschaubaren Gruppen starten lassen.
+              Eine Installations-Warteschlange, optionale Lab-Limits.
             </h2>
-            <p class="section-intro" data-lang="en">
-              Batching limits the burst through kubelet and network setup. It
-              trades some parallelism for lower peak load.
-            </p>
-            <p class="section-intro" data-lang="de">
-              Batching begrenzt die Lastspitze bei Kubelet und Netzaufbau. Dafür
-              verzichtet es auf einen Teil der Parallelität.
-            </p>
           </div>
         </div>
         <p data-lang="en">
-          Set <code>spec.rollout.batchSize</code> on a Topology. With 1,000
-          independent devices and a size of 100, c9s admits 100, then another
-          100, and so on. Omit it or use <code>0</code> for unrestricted
-          startup.
+          <code>batchSize</code> controls how many new primary Pod groups enter
+          startup before the queue waits for sandbox readiness.
+          <strong
+            >Config covers the installation; Topology adds a per-lab
+            cap.</strong
+          >
+          Standalone Nodes use the Config queue too, across namespaces.
         </p>
         <p data-lang="de">
-          Setze <code>spec.rollout.batchSize</code> an einer Topology. Bei 1.000
-          unabhängigen Geräten und einer Größe von 100 lässt c9s zuerst 100 zu,
-          danach weitere 100 und so weiter. Ohne Angabe oder mit
-          <code>0</code> startet die Topologie unbegrenzt.
+          <code>batchSize</code> steuert, wie viele neue primäre Pod-Gruppen in
+          den Start gelangen, bevor die Warteschlange auf Sandbox-Bereitschaft
+          wartet.
+          <strong
+            >Config gilt für die Installation; Topology ergänzt ein Limit pro
+            Lab.</strong
+          >
+          Auch eigenständige Nodes nutzen die Config-Warteschlange, über
+          Namespace-Grenzen hinweg.
         </p>
-        <pre class="term"><code># Topology spec
+        <pre
+          class="term"
+        ><code># Example Config; use the actual manager namespace.
+apiVersion: c9s.run/v1alpha1
+kind: Config
+metadata:
+  name: clabernetes
+  namespace: c9s-e2e
 spec:
   rollout:
-    batchSize: 100</code></pre>
+    batchSize: 100
+    maxConcurrentPerHost: 50</code></pre>
+        <p data-lang="en">
+          For an existing Config, change only the rollout fields you intend to
+          change; preserve the other settings. Example patch for both fields:
+        </p>
+        <p data-lang="de">
+          Bei bestehender Config nur die gewünschten Rollout-Felder ändern und
+          andere Einstellungen erhalten. Beispiel-Patch für beide Felder:
+        </p>
+        <pre
+          class="term"
+        ><code>kubectl -n YOUR_MANAGER_NAMESPACE patch configs.c9s.run clabernetes \
+  --type=merge -p '{"spec":{"rollout":{"batchSize":100,"maxConcurrentPerHost":50}}}'</code></pre>
+        <p data-lang="en">
+          Helm bootstrap equivalents are
+          <code>globalConfig.rollout.batchSize</code> and
+          <code>globalConfig.rollout.maxConcurrentPerHost</code>. Normal
+          bootstrap merge preserves an existing rollout policy, including
+          explicit zero. Editing a Helm value is therefore not sufficient to
+          override an existing Config policy.
+        </p>
+        <p data-lang="de">
+          Die Helm-Bootstrap-Felder heißen
+          <code>globalConfig.rollout.batchSize</code> und
+          <code>globalConfig.rollout.maxConcurrentPerHost</code>. Der normale
+          Bootstrap-Merge erhält eine vorhandene Rollout-Policy, auch eine
+          explizite Null. Eine Änderung des Helm-Werts allein überschreibt daher
+          keine vorhandene Config-Policy.
+        </p>
         <div class="grid-3">
           <article class="card">
-            <h3 data-lang="en">1 · Describe the whole lab</h3>
-            <h3 data-lang="de">1 · Das ganze Lab beschreiben</h3>
+            <h3 data-lang="en">1 · Publish complete intent</h3>
+            <h3 data-lang="de">1 · Vollständige Definitionen</h3>
             <p data-lang="en">
-              All Node, Link and NodeProfile definitions exist first. Held Nodes
-              carry <code>c9s.run/startup-hold</code> and do not start planning
-              yet.
+              Topology creates Node, Link and NodeProfile definitions first. For
+              standalone resources, publish the complete intended Nodes and
+              Links too. Large labs can use smaller standalone objects and a
+              shared NodeProfile; there is no hard 100-node cutoff for Topology.
             </p>
             <p data-lang="de">
-              Alle Node-, Link- und NodeProfile-Definitionen werden zuerst
-              erzeugt. Zurückgehaltene Nodes tragen
-              <code>c9s.run/startup-hold</code> und beginnen noch nicht mit der
-              Planung.
+              Topology erzeugt zuerst Node-, Link- und NodeProfile-Definitionen.
+              Auch eigenständige Ressourcen mit vollständiger Node-/Link-Absicht
+              veröffentlichen. Große Labs können kleinere Einzelobjekte und ein
+              gemeinsames NodeProfile nutzen; es gibt keine feste
+              100-Node-Grenze für Topology.
             </p>
           </article>
           <article class="card">
-            <h3 data-lang="en">2 · Admit 100 workloads</h3>
-            <h3 data-lang="de">2 · 100 Workloads zulassen</h3>
+            <h3 data-lang="en">2 · Admit primary workloads</h3>
+            <h3 data-lang="de">2 · Primäre Workloads freigeben</h3>
             <p data-lang="en">
-              The size counts primary workloads (Pods). Containers sharing a
-              network namespace are admitted together. Admission is saved on the
-              Nodes and survives a manager restart.
+              Shared-network members count as one Pod. Admission is persisted on
+              Nodes as <code>c9s.run/startup-admitted</code> with the Node UID.
+              Held Topology Nodes carry <code>c9s.run/startup-hold</code>;
+              planning waits for admission. Streamed creation can produce
+              batches smaller than the configured maximum.
             </p>
             <p data-lang="de">
-              Die Größe zählt primäre Workloads (Pods). Container mit
-              gemeinsamem Netzwerk-Namespace werden zusammen zugelassen. Der
-              Freigabestand steht auf den Nodes und überlebt einen
-              Manager-Neustart.
+              Mitglieder mit gemeinsamem Netzwerk zählen als ein Pod. Die
+              Freigabe steht als <code>c9s.run/startup-admitted</code> mit
+              Node-UID auf den Nodes. Zurückgehaltene Topology-Nodes tragen
+              <code>c9s.run/startup-hold</code>; Planung wartet auf Freigabe.
+              Gestreamte Erzeugung kann kleinere Batches als das konfigurierte
+              Maximum ergeben.
             </p>
           </article>
           <article class="card">
             <h3 data-lang="en">3 · Wait for sandbox readiness</h3>
             <h3 data-lang="de">3 · Auf Sandbox-Bereitschaft warten</h3>
             <p data-lang="en">
-              The next batch starts when all previously admitted workloads have
-              a Pod with <code>PodReadyToStartContainers=True</code>. Full
-              application and link readiness can follow later.
+              All admitted workloads must report
+              <code>PodReadyToStartContainers=True</code> before the next batch.
+              This avoids waiting for peers in later batches to finish
+              application or link readiness. A failed sandbox, unschedulable Pod
+              or absent condition can stop the queue.
             </p>
             <p data-lang="de">
-              Der nächste Batch startet, wenn alle zuvor zugelassenen Workloads
-              einen Pod mit <code>PodReadyToStartContainers=True</code> haben.
-              Vollständige Anwendungs- und Link-Bereitschaft darf später folgen.
+              Alle zugelassenen Workloads müssen vor dem nächsten Batch
+              <code>PodReadyToStartContainers=True</code> melden. So wartet die
+              Freigabe nicht auf Anwendungs- oder Link-Bereitschaft von Peers
+              aus späteren Batches. Eine defekte Sandbox, ein nicht einplanbarer
+              Pod oder eine fehlende Bedingung kann die Warteschlange stoppen.
             </p>
           </article>
         </div>
         <div class="callout" data-lang="en">
-          <strong>Why not wait for full device readiness?</strong> A device may
-          need a peer in a later batch. Waiting for that peer before admitting
-          the later batch could block startup. Topology Ready still requires the
-          normal complete device checks.
+          <strong>Scope and recovery:</strong> Node admission survives manager
+          restarts, and existing workloads are adopted without a restart. Size
+          edits affect later admission; they do not revoke grants. Zero disables
+          that scope only: Topology zero cannot bypass Config. Fix or delete a
+          blocking Node, or deliberately disable the relevant limit. Node
+          admission does not pace replacement Pods or rolling changes for
+          already admitted Nodes.
         </div>
         <div class="callout" data-lang="de">
-          <strong
-            >Warum nicht auf vollständige Gerätebereitschaft warten?</strong
-          >
-          Ein Gerät kann einen Nachbarn aus einem späteren Batch brauchen. Würde
-          dessen Freigabe darauf warten, könnte der Start blockieren. Für
-          Topology Ready gelten weiterhin die vollständigen Geräteprüfungen.
+          <strong>Geltungsbereich und Wiederanlauf:</strong> Node-Freigaben
+          überleben Manager-Neustarts; bestehende Workloads werden ohne Neustart
+          übernommen. Größenänderungen wirken auf spätere Freigaben und
+          widerrufen keine bestehenden. Null deaktiviert nur diesen
+          Geltungsbereich: Topology-Null umgeht Config nicht. Einen
+          blockierenden Node reparieren oder löschen oder das betreffende Limit
+          bewusst deaktivieren. Die Node-Freigabe taktet keine Ersatz-Pods oder
+          Rolling-Änderungen bereits zugelassener Nodes.
         </div>
-        <div class="grid-2">
-          <article class="card">
-            <h3 data-lang="en">If the batch stops advancing</h3>
-            <h3 data-lang="de">Wenn der Batch nicht weiterkommt</h3>
-            <p data-lang="en">
-              Inspect the admitted Pods and their Events. An unschedulable Pod,
-              failed sandbox or missing
-              <code>PodReadyToStartContainers</code> condition holds the next
-              batch. Kubernetes must report this condition.
-            </p>
-            <p data-lang="de">
-              Prüfe die zugelassenen Pods und ihre Events. Ein nicht
-              einplanbarer Pod, eine fehlgeschlagene Sandbox oder eine fehlende
-              <code>PodReadyToStartContainers</code>-Bedingung hält den nächsten
-              Batch auf. Kubernetes muss diese Bedingung melden.
-            </p>
-          </article>
-          <article class="card">
-            <h3 data-lang="en">What the limit covers</h3>
-            <h3 data-lang="de">Wofür das Limit gilt</h3>
-            <p data-lang="en">
-              It applies per Topology to new workloads, including newly added or
-              recreated Node resources. Independently authored Nodes, rolling
-              changes and replacement Pods for already admitted Nodes are
-              outside this pacing. Multiple labs can still create a larger
-              combined burst.
-            </p>
-            <p data-lang="de">
-              Es gilt pro Topology für neue Workloads, auch für neu hinzugefügte
-              oder neu erstellte Node-Ressourcen. Unabhängig erstellte Nodes,
-              Rolling-Änderungen und Ersatz-Pods bereits zugelassener Nodes
-              werden dadurch nicht getaktet. Mehrere Labs können zusammen
-              weiterhin eine größere Lastspitze erzeugen.
-            </p>
-          </article>
+      </section>
+      <section id="host-boots">
+        <div class="section-head">
+          <div class="section-index">Host Boots</div>
+          <div>
+            <h2 data-lang="en">Sandbox ready is not device boot complete.</h2>
+            <h2 data-lang="de">
+              Sandbox bereit heißt nicht Gerät fertig gebootet.
+            </h2>
+          </div>
         </div>
         <p data-lang="en">
-          Changing the size affects subsequent batches. It does not stop an
-          admitted batch. Setting it to <code>0</code> releases all remaining
-          held Nodes. Keep dual-stack enabled when comparing sizes.
+          A ready sandbox can still contain a router that has not booted.
+          <code>maxConcurrentPerHost</code> holds new devices in the
+          <code>startup-gate</code> init container
+          <strong
+            >after scheduling and sandbox creation, before preparation and
+            device boot</strong
+          >. Use it alongside batches. Values 100 / 50 are examples to measure,
+          not universal defaults.
         </p>
         <p data-lang="de">
-          Eine neue Größe wirkt auf folgende Batches. Bereits zugelassene
-          Batches werden nicht angehalten. <code>0</code> gibt alle
-          verbleibenden zurückgehaltenen Nodes frei. Für Größenvergleiche
-          Dual-Stack aktiviert lassen.
+          Eine bereite Sandbox kann einen noch nicht gebooteten Router
+          enthalten. <code>maxConcurrentPerHost</code> hält neue Geräte im
+          Init-Container <code>startup-gate</code> zurück:
+          <strong
+            >nach Scheduling und Sandbox-Erzeugung, vor Vorbereitung und
+            Geräte-Boot</strong
+          >. Gemeinsam mit Batches verwenden. Die Werte 100 / 50 sind
+          Messbeispiele, keine allgemeinen Standardwerte.
         </p>
+        <div class="diagram" data-lang="en">
+          <div class="diagram-title">
+            <b>Example: Config 3 per host, lab A 2 per host</b>
+          </div>
+          <pre class="mermaid">
+flowchart TD
+ subgraph Hosts[Separate budgets on each host]
+ direction LR
+ W1[&quot;Host 1: all three slots used&lt;br/&gt;Lab A: two boots&lt;br/&gt;Lab B: one boot&quot;]
+ W2[&quot;Host 2: its own three slots&lt;br/&gt;At most two boots from lab A&quot;]
+ end
+ W1 --&gt;|One primary reports started true| S[One slot is free on host 1]
+ Q[Lab A device 3 is waiting] --&gt; R{Both caps allow it?}
+ S --&gt; R
+ R --&gt;|Yes| G[Grant device 3 on host 1]
+ G --&gt; N[Device boots until primary startup succeeds]</pre
+          >
+        </div>
+        <div class="diagram" data-lang="de">
+          <div class="diagram-title">
+            <b>Beispiel: Config 3 pro Host, Lab A 2 pro Host</b>
+          </div>
+          <pre class="mermaid">
+flowchart TD
+ subgraph Hosts[Getrennte Budgets pro Host]
+ direction LR
+ W1[&quot;Host 1: alle drei Slots belegt&lt;br/&gt;Lab A: zwei Boots&lt;br/&gt;Lab B: ein Boot&quot;]
+ W2[&quot;Host 2: eigene drei Slots&lt;br/&gt;Höchstens zwei Boots aus Lab A&quot;]
+ end
+ W1 --&gt;|Ein Primary meldet started true| S[Ein Slot auf Host 1 ist frei]
+ Q[Lab A Gerät 3 wartet] --&gt; R{Beide Limits erlauben es?}
+ S --&gt; R
+ R --&gt;|Ja| G[Gerät 3 auf Host 1 freigeben]
+ G --&gt; N[Gerät bootet bis Primary-Start erfolgreich ist]</pre
+          >
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Control / Steuerung</th>
+                <th>Count / Zählung</th>
+                <th>Release / Freigabe</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Config <code>maxConcurrentPerHost</code></td>
+                <td>
+                  <span data-lang="en"
+                    >All direct workloads across namespaces on each host</span
+                  ><span data-lang="de"
+                    >Alle direkten Workloads über Namespace-Grenzen pro
+                    Host</span
+                  >
+                </td>
+                <td><code>primary.started: true</code></td>
+              </tr>
+              <tr>
+                <td>Topology <code>maxConcurrentPerHost</code></td>
+                <td>
+                  <span data-lang="en"
+                    >That lab on each host; must also fit Config</span
+                  ><span data-lang="de"
+                    >Dieses Lab pro Host; muss zusätzlich in Config passen</span
+                  >
+                </td>
+                <td><code>primary.started: true</code></td>
+              </tr>
+              <tr>
+                <td><code>batchSize</code></td>
+                <td>
+                  <span data-lang="en"
+                    >New primary Pod groups in the selected scope</span
+                  ><span data-lang="de"
+                    >Neue primäre Pod-Gruppen im jeweiligen
+                    Geltungsbereich</span
+                  >
+                </td>
+                <td><code>PodReadyToStartContainers=True</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p data-lang="en">
+          The boot slot ends when the primary application passes its startup
+          probe. Without a startup probe, Kubernetes marks it started once it is
+          running. Use a <strong>device-local</strong> probe: waiting for a
+          later peer or BGP convergence can hold every slot and stall the lab.
+          Pod Ready and c9s Ready remain separate checks.
+        </p>
+        <p data-lang="de">
+          Der Boot-Slot endet, wenn die primäre Anwendung ihre Startup-Probe
+          besteht. Ohne Startup-Probe setzt Kubernetes started, sobald sie
+          läuft. Eine <strong>gerätelokale</strong> Probe verwenden: Das Warten
+          auf spätere Peers oder BGP-Konvergenz kann alle Slots belegen und das
+          Lab blockieren. Pod Ready und c9s Ready bleiben getrennte Prüfungen.
+        </p>
+        <p data-lang="en">
+          A grant is written to the live Pod as
+          <code>c9s.run/startup-host-admitted</code> with its Pod UID. The gate
+          reads the Downward API volume; it does not poll the API server.
+          Projection can add delay. Grants survive manager restarts; replacement
+          Pods of gated workloads need fresh grants.
+        </p>
+        <p data-lang="de">
+          Die Freigabe steht als <code>c9s.run/startup-host-admitted</code> mit
+          Pod-UID auf dem laufenden Pod. Das Gate liest das Downward-API-Volume
+          und pollt nicht den API-Server. Die Projektion kann verzögern.
+          Freigaben überleben Manager-Neustarts; Ersatz-Pods von Workloads mit
+          Gate benötigen neue Freigaben.
+        </p>
+        <div class="callout" data-lang="en">
+          <strong>What edits do:</strong> Pending admission uses the new limits.
+          Existing grants are retained, and Deployment templates keep their
+          original gate choice, so enabling the setting does not retrofit
+          running workloads. Existing ungated boots count against the Config
+          cap. A container restart inside an admitted Pod is not separately
+          gated. A stuck boot holds its slot until repaired, removed or released
+          by explicitly disabling the relevant limit.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong>Wirkung von Änderungen:</strong> Wartende Freigaben nutzen
+          neue Limits. Bestehende Freigaben bleiben; Deployment-Templates
+          behalten ihre ursprüngliche Gate-Entscheidung. Aktivieren ergänzt
+          daher keine Gates in laufenden Workloads. Bereits laufende Boots ohne
+          Gate zählen gegen das Config-Limit. Ein Container-Neustart im
+          zugelassenen Pod wird nicht separat begrenzt. Ein hängender Boot hält
+          seinen Slot bis zur Reparatur, Entfernung oder Freigabe durch
+          ausdrückliches Abschalten des betreffenden Limits.
+        </div>
       </section>
       <section id="controller">
         <div class="section-head">
-          <div class="section-index">04 · Controller</div>
+          <div class="section-index">Controller changes</div>
           <div>
             <h2 data-lang="en">Less repeated work while devices start.</h2>
             <h2 data-lang="de">
@@ -581,10 +1896,869 @@ spec:
           teilen sich weiterhin Node-Reconcile-Worker; die Objekte pro Gerät
           bleiben erhalten.
         </div>
+        <h3 data-lang="en">What changed after the first scaling report</h3>
+        <h3 data-lang="de">
+          Was sich nach dem ersten Skalierungsbericht geändert hat
+        </h3>
+        <div class="diagram" data-lang="en">
+          <div class="diagram-title">
+            <b>Remove repeated work, then control the remaining bursts</b>
+          </div>
+          <pre class="mermaid">
+flowchart TD
+ A[Reusable planners and exact-input plan reuse] --&gt; B[Fewer temporary Pods and repeated plans]
+ C[Status observation and indexed references] --&gt; D[Fewer full reconciles and inventory scans]
+ E[Namespace Link queue and coalesced status] --&gt; D
+ F[On-demand IPv4 neighbors] --&gt; G[Less idle kernel state]
+ H[Verified runtime binary cache] --&gt; I[Reflinks reduce repeated disk writes where supported]
+ B --&gt; J[Less work per device]
+ D --&gt; J
+ G --&gt; J
+ I --&gt; J
+ J --&gt; K[Batch admission controls sandbox bursts]
+ K --&gt; L[Host gate controls simultaneous device boots]</pre
+          >
+        </div>
+        <div class="diagram" data-lang="de">
+          <div class="diagram-title">
+            <b
+              >Wiederholte Arbeit entfernen, verbleibende Startwellen steuern</b
+            >
+          </div>
+          <pre class="mermaid">
+flowchart TD
+ A[Wiederverwendbare Planner und passende Pläne] --&gt; B[Weniger temporäre Pods und neue Pläne]
+ C[Status-Beobachtung und Referenz-Indizes] --&gt; D[Weniger Vollabgleiche und Inventarscans]
+ E[Link-Queue pro Namespace und gebündelter Status] --&gt; D
+ F[IPv4-Nachbarn bei Bedarf] --&gt; G[Weniger ungenutzter Kernel-Zustand]
+ H[Geprüfter Runtime-Binary-Cache] --&gt; I[Reflinks sparen wiederholte Schreibvorgänge wo unterstützt]
+ B --&gt; J[Weniger Arbeit pro Gerät]
+ D --&gt; J
+ G --&gt; J
+ I --&gt; J
+ J --&gt; K[Batch-Freigabe begrenzt Sandbox-Startwellen]
+ K --&gt; L[Host-Gate begrenzt gleichzeitige Geräte-Boots]</pre
+          >
+        </div>
+        <div class="grid-2">
+          <article class="card">
+            <h3 data-lang="en">Link allocation per namespace</h3>
+            <h3 data-lang="de">Link-Allokation pro Namespace</h3>
+            <p data-lang="en">
+              The Link controller resolves the allocation domain from one live
+              snapshot per namespace queue pass. Events share a queue key,
+              avoiding a full namespace inventory for every individual Link
+              event. Conflict and identity checks remain.
+            </p>
+            <p data-lang="de">
+              Der Link-Controller bearbeitet den Allokationsbereich aus einem
+              Live-Snapshot pro Namespace-Durchlauf. Events teilen einen
+              Queue-Schlüssel; ein vollständiges Namespace-Inventar pro
+              einzelnem Link-Event entfällt. Konflikt- und Identitätsprüfungen
+              bleiben.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">Coalesce progress, preserve transitions</h3>
+            <h3 data-lang="de">Fortschritt bündeln, Übergänge erhalten</h3>
+            <p data-lang="en">
+              Topology progress counts are coalesced over two seconds and
+              written with status patches. Generation, errors, lifecycle and
+              final readiness are immediate. Kubernetes still stores and
+              distributes the changed object, including a large embedded
+              definition. Smaller standalone resources can reduce individual
+              object payloads.
+            </p>
+            <p data-lang="de">
+              Topology-Fortschrittszähler werden über zwei Sekunden gebündelt
+              und per Status-Patch geschrieben. Generation, Fehler, Lifecycle
+              und finale Bereitschaft werden sofort gemeldet. Kubernetes
+              speichert und verteilt weiterhin das geänderte Objekt
+              einschließlich großer eingebetteter Definition. Kleinere
+              Einzelressourcen können die Größe einzelner Objekte reduzieren.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">Resolve IPv4 peers when contacted</h3>
+            <h3 data-lang="de">IPv4-Peers bei Kontakt auflösen</h3>
+            <p data-lang="en">
+              The kernel queues the first packet; clabwire authorizes the target
+              from the peer directory and installs its neighbor and tunnel
+              forwarding entries. Idle IPv4 peers need no such entries.
+              Contacted peers retain state until removed; all-to-all traffic can
+              still create quadratic aggregate state. Directory and hosts data
+              remain per peer, and IPv6 gateway proxy entries still cover every
+              IPv6 peer.
+            </p>
+            <p data-lang="de">
+              Der Kernel puffert das erste Paket; clabwire prüft das Ziel anhand
+              des Peer-Verzeichnisses und installiert Nachbar- und
+              Tunnel-Forwarding-Einträge. Ungenutzte IPv4-Peers benötigen diese
+              Einträge nicht. Kontaktierte Peers behalten Zustand bis zur
+              Entfernung; All-to-all-Traffic kann insgesamt weiterhin
+              quadratischen Zustand erzeugen. Verzeichnis und Hosts-Daten
+              bleiben pro Peer, IPv6-Gateway-Proxy-Einträge erfassen weiterhin
+              jeden IPv6-Peer.
+            </p>
+          </article>
+          <article class="card">
+            <h3 data-lang="en">Reuse runtime binary storage</h3>
+            <h3 data-lang="de">Runtime-Binary-Speicher wiederverwenden</h3>
+            <p data-lang="en">
+              A bounded host cache keeps four verified binary versions, at most
+              256 MiB each. On a shared filesystem with reflink support,
+              preparation creates a private copy-on-write binary per Pod. Other
+              filesystems use ordinary copies. Applications see only their own
+              read-only file and metadata; plan for per-Pod disk use when
+              reflinks are unavailable.
+            </p>
+            <p data-lang="de">
+              Ein begrenzter Host-Cache hält vier geprüfte Binary-Versionen mit
+              jeweils höchstens 256 MiB. Auf gemeinsamem Dateisystem mit
+              Reflink-Unterstützung erzeugt die Vorbereitung pro Pod ein
+              privates Copy-on-write-Binary. Sonst werden normale Kopien
+              erstellt. Anwendungen sehen nur ihre eigene schreibgeschützte
+              Datei samt Metadaten; ohne Reflinks den Platz pro Pod einplanen.
+            </p>
+          </article>
+        </div>
+        <div class="callout" data-lang="en">
+          <strong>Optional management removal changes lab behavior.</strong>
+          <code>Topology.spec.disableManagement: true</code> or
+          <code>NodeProfile.spec.mgmt.disabled: true</code> omits allocation and
+          the mesh. Remove explicit management addresses too. Pod networking and
+          data links remain, but management-subnet addresses and peer names are
+          unavailable; some NOS kinds need the management interface. The
+          verified 1,900-device ring kept management enabled.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong
+            >Optionales Abschalten des Managements ändert das
+            Lab-Verhalten.</strong
+          >
+          <code>Topology.spec.disableManagement: true</code> oder
+          <code>NodeProfile.spec.mgmt.disabled: true</code> entfernt Allokation
+          und Mesh. Explizite Management-Adressen ebenfalls entfernen. Pod-Netz
+          und Datenlinks bleiben, Management-Subnetzadressen und Peer-Namen
+          entfallen; manche NOS benötigen das Management-Interface. Im
+          verifizierten 1.900-Geräte-Ring blieb Management aktiviert.
+        </div>
+        <p data-lang="en">
+          With the reusable pool enabled, the Node controller now has
+          <strong>16 reconcile workers</strong>; the planner-session controller
+          also has a ceiling of 16. Planning and observations share Node
+          workers. The pool defaults to four Pods, each processing one request
+          at a time. Increasing replicas helps only while planning is the
+          bottleneck; it cannot accelerate kubelet delivery, image pulls or
+          device boot. The disposable fallback keeps one Node reconcile worker.
+        </p>
+        <p data-lang="de">
+          Mit wiederverwendbarem Pool hat der Node-Controller jetzt
+          <strong>16 Reconcile-Worker</strong>; auch der
+          Planner-Session-Controller hat ein Limit von 16. Planung und
+          Beobachtungen teilen Node-Worker. Standard sind vier Pool-Pods mit
+          jeweils einer Anfrage gleichzeitig. Mehr Replicas helfen nur bei einem
+          Planungsengpass; sie beschleunigen weder Kubelet-Zustellung noch
+          Image-Pulls oder Geräte-Boot. Der Weg mit kurzlebigen Planner-Pods
+          behält einen Node-Reconcile-Worker.
+        </p>
+        <p data-lang="en">
+          Source checks:
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/link/reconcile.go"
+            >Link queue</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/topology/status.go"
+            >Topology status</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/internal/directruntime/neighbor_resolver_linux.go"
+            >neighbor resolver</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/internal/directruntime/lifecycle_cache_linux.go"
+            >binary cache</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/node/controller.go"
+            >controller concurrency</a
+          >.
+        </p>
+        <p data-lang="de">
+          Quellenprüfung:
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/link/reconcile.go"
+            >Link-Queue</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/topology/status.go"
+            >Topology-Status</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/internal/directruntime/neighbor_resolver_linux.go"
+            >Nachbar-Auflösung</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/internal/directruntime/lifecycle_cache_linux.go"
+            >Binary-Cache</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/node/controller.go"
+            >Controller-Parallelität</a
+          >.
+        </p>
+      </section>
+      <section id="pressure">
+        <div class="section-head">
+          <div class="section-index">Pressure</div>
+          <div>
+            <h2 data-lang="en">Less kernel, API and disk pressure.</h2>
+            <h2 data-lang="de">Weniger Kernel-, API- und Disk-Last.</h2>
+          </div>
+        </div>
+        <p data-lang="en">
+          The larger labs became possible by reducing the work created by each
+          device in three places:
+          <strong
+            >kernel networking, the Kubernetes API, and host storage</strong
+          >. Batches then spread the remaining work over time. These c9s runtime
+          and controller changes are present in <code>08b94a3</code>; the
+          successful 1,900-device run used the existing host kernels.
+        </p>
+        <p data-lang="de">
+          Die größeren Labs wurden möglich, weil jedes Gerät an drei Stellen
+          weniger Arbeit erzeugt:
+          <strong
+            >im Netzwerk-Kernel, an der Kubernetes-API und auf dem
+            Host-Datenträger</strong
+          >. Batches verteilen die verbleibende Arbeit anschließend über die
+          Zeit. Diese c9s-Runtime- und Controller-Änderungen sind in
+          <code>08b94a3</code> enthalten; der erfolgreiche 1.900-Geräte-Lauf
+          nutzte die bestehenden Host-Kernel.
+        </p>
+        <div class="pill-row">
+          <a class="pill" href="#kernel-pressure">Kernel</a
+          ><a class="pill" href="#api-pressure">API</a
+          ><a class="pill" href="#disk-pressure">Disk</a
+          ><a class="pill" href="#host-experiments"
+            ><span data-lang="en">Host experiments</span
+            ><span data-lang="de">Host-Versuche</span></a
+          >
+        </div>
+        <div id="kernel-pressure">
+          <h3 data-lang="en">
+            1 · Kernel: stop asking every Pod to scan the host.
+          </h3>
+          <h3 data-lang="de">
+            1 · Kernel: nicht jeden Pod den Host durchsuchen lassen.
+          </h3>
+          <p data-lang="en">
+            A Pod has its own network namespace, but expensive kernel work can
+            still contend across Pods on one host. The old management mesh
+            installed neighbors eagerly. Near 1,400 devices, the recorded
+            workers held roughly 750,000–1,000,000 ARP entries each. During
+            deletion of a failed trial, profiling found a kernel worker holding
+            RTNL while <code>neigh_flush_dev</code> walked neighbor state. RTNL
+            is the shared lock used for many network-device changes; slow
+            cleanup can delay other networking work. This capture established a
+            deletion bottleneck, not the cause of every startup stall.
+          </p>
+          <p data-lang="de">
+            Ein Pod hat einen eigenen Netzwerk-Namespace, aber aufwendige
+            Kernel-Arbeit kann trotzdem zwischen Pods eines Hosts konkurrieren.
+            Das alte Management-Mesh installierte Nachbarn vorab. Bei rund 1.400
+            Geräten hatten die beobachteten Worker jeweils etwa
+            750.000–1.000.000 ARP-Einträge. Beim Löschen eines fehlgeschlagenen
+            Versuchs zeigte das Profil einen Kernel-Worker, der RTNL hielt,
+            während <code>neigh_flush_dev</code> Nachbarzustand durchlief. RTNL
+            ist die gemeinsame Sperre für viele Änderungen an Netzwerkgeräten;
+            langsames Aufräumen kann andere Netzwerkarbeit verzögern. Diese
+            Aufnahme belegt einen Löschengpass, nicht die Ursache jedes
+            Startstillstands.
+          </p>
+          <div class="diagram" data-lang="en">
+            <div class="diagram-title">
+              <b>Three c9s changes reduce shared kernel work</b>
+            </div>
+            <pre class="mermaid">
+flowchart TD
+ A[Repeated neighbor and forwarding dumps] --&gt; B[Notification-backed inventory]
+ B --&gt; C[Apply changes from kernel events]
+ C -.->|Recovery only| D[Fresh dump on adoption or lost events]
+ E[Eager entry for every peer in every Pod] --&gt; F[Resolve authorized peers on first contact]
+ F --&gt; G[Idle IPv4 peers need no neighbor or FDB entry]
+ H[Per-link GETLINK carrier polling] --&gt; I[Read-only interface ioctls]
+ I --&gt; J[Same one-second check with less RTNL contention]</pre
+            >
+          </div>
+          <div class="diagram" data-lang="de">
+            <div class="diagram-title">
+              <b>Drei c9s-Änderungen reduzieren gemeinsame Kernel-Arbeit</b>
+            </div>
+            <pre class="mermaid">
+flowchart TD
+ A[Wiederholte Nachbar- und Forwarding-Dumps] --&gt; B[Inventar aus Kernel-Benachrichtigungen]
+ B --&gt; C[Änderungen aus Kernel-Events übernehmen]
+ C -.->|Nur zur Wiederherstellung| D[Neuer Dump bei Übernahme oder Eventverlust]
+ E[Jeder Peer vorab in jedem Pod] --&gt; F[Autorisierte Peers beim ersten Kontakt auflösen]
+ F --&gt; G[Ungenutzte IPv4-Peers brauchen keinen Nachbar- oder FDB-Eintrag]
+ H[GETLINK-Polling pro Link für Carrier] --&gt; I[Nur lesende Interface-ioctls]
+ I --&gt; J[Gleiche Sekundenprüfung mit weniger RTNL-Konkurrenz]</pre
+            >
+          </div>
+          <ul>
+            <li data-lang="en">
+              <strong>Keep a neighbor inventory from notifications.</strong>
+              Subscribe to kernel neighbor events instead of repeatedly dumping
+              the tables on peer updates. A newly created tunnel starts with
+              known empty state. Existing interfaces and lost or overflowing
+              notifications trigger a fresh dump; missing events are not
+              silently trusted.
+            </li>
+            <li data-lang="de">
+              <strong>Nachbar-Inventar aus Benachrichtigungen halten.</strong>
+              Kernel-Nachbar-Events abonnieren, statt bei Peer-Updates
+              wiederholt Tabellen auszulesen. Ein neu erzeugter Tunnel beginnt
+              mit bekannt leerem Zustand. Bestehende Interfaces und verlorene
+              oder übergelaufene Benachrichtigungen lösen einen frischen Dump
+              aus; fehlende Events werden nicht stillschweigend ignoriert.
+            </li>
+            <li data-lang="en">
+              <strong>Install peer state on demand.</strong> The kernel queues
+              the first packet while clabwire checks the directory and installs
+              the permitted mapping. During the improved run, worker-wide ARP
+              totals were around 1,500; after all 1,900-device traffic probes
+              they were 6,480 and 5,452. These are recorded observations at
+              different stages, not identical snapshots. Contacting every peer
+              can still create all-to-all state; IPv6 gateway proxy entries
+              remain eager.
+            </li>
+            <li data-lang="de">
+              <strong>Peer-Zustand bei Bedarf installieren.</strong> Der Kernel
+              puffert das erste Paket, während clabwire das Verzeichnis prüft
+              und die erlaubte Zuordnung installiert. Im verbesserten Lauf lagen
+              die Host-weiten ARP-Zahlen bei rund 1.500; nach allen
+              Traffic-Prüfungen für 1.900 Geräte bei 6.480 und 5.452. Das sind
+              Beobachtungen verschiedener Phasen, keine identischen Snapshots.
+              Kontakt zu jedem Peer kann weiterhin All-to-all-Zustand erzeugen;
+              IPv6-Gateway-Proxy-Einträge bleiben vorab installiert.
+            </li>
+            <li data-lang="en">
+              <strong
+                >Read carrier state without repeated GETLINK requests.</strong
+              >
+              Periodic wire checks now use read-only interface ioctls on an
+              RCU-backed kernel path. The one-second sampling backstop and
+              heartbeat timeouts remain. Link-change notifications still report
+              changes; reducing lock contention does not remove carrier
+              monitoring.
+            </li>
+            <li data-lang="de">
+              <strong
+                >Carrier-Zustand ohne wiederholte GETLINK-Anfragen
+                lesen.</strong
+              >
+              Periodische Wire-Prüfungen nutzen jetzt nur lesende
+              Interface-ioctls über einen RCU-basierten Kernelpfad. Die
+              ergänzende Sekundenprüfung und Heartbeat-Timeouts bleiben.
+              Link-Benachrichtigungen melden weiterhin Änderungen; weniger
+              Sperrkonkurrenz entfernt nicht die Carrier-Überwachung.
+            </li>
+          </ul>
+          <div class="callout" data-lang="en">
+            <strong>The bottleneck moved.</strong> In the saved top 70 kernel
+            stacks at about 1,500 Ready devices, neighbor cleanup no longer
+            appeared; cgroup accounting by kubelet/containerd was prominent
+            instead. The capture was kernel-only and dominated by idle samples.
+            It shows that another cost remained, not that all kernel pressure
+            disappeared.
+          </div>
+          <div class="callout" data-lang="de">
+            <strong>Der Engpass verlagerte sich.</strong> In den gespeicherten
+            70 häufigsten Kernel-Stacks bei etwa 1.500 bereiten Geräten tauchte
+            das Nachbar-Aufräumen nicht mehr auf; stattdessen fiel
+            cgroup-Abrechnung durch Kubelet/Containerd auf. Die Aufnahme
+            erfasste nur den Kernel und wurde von Idle-Samples dominiert. Sie
+            zeigt verbleibende Kosten, nicht das Verschwinden sämtlicher
+            Kernel-Last.
+          </div>
+        </div>
+        <div id="inotify">
+          <h3 data-lang="en">
+            Host prerequisite: enough inotify instances and watches
+          </h3>
+          <h3 data-lang="de">
+            Host-Voraussetzung: genug Inotify-Instanzen und Watches
+          </h3>
+          <p data-lang="en">
+            Inotify lets Linux processes watch file changes. Its
+            <code>max_user_instances</code> and
+            <code>max_user_watches</code> limits are per real user ID; dense
+            workloads can exhaust the shared user budget before CPU or RAM is
+            full. In one recorded trial, six workers were limited to 128
+            instances and each logged 380–401 inotify-creation failures in
+            containerd. Two workers already at 62,800 logged none. The affected
+            hosts were raised to 62,800, with their other limits preserved. This
+            fixed an observed prerequisite shortage; it did not establish the
+            cause of that run’s API outage.
+          </p>
+          <p data-lang="de">
+            Inotify lässt Linux-Prozesse Dateiänderungen beobachten.
+            <code>max_user_instances</code> und
+            <code>max_user_watches</code> gelten pro realer Benutzer-ID; dichte
+            Workloads können dieses gemeinsame Benutzerbudget vor CPU oder RAM
+            ausschöpfen. In einem aufgezeichneten Versuch waren sechs Worker auf
+            128 Instanzen begrenzt und protokollierten jeweils 380–401
+            Inotify-Erzeugungsfehler in Containerd. Zwei Worker mit bereits
+            62.800 protokollierten keine. Die betroffenen Hosts wurden auf
+            62.800 angehoben, andere Limits blieben erhalten. Das behob einen
+            beobachteten Voraussetzungsengpass, belegt aber nicht die Ursache
+            des API-Ausfalls dieses Laufs.
+          </p>
+          <pre class="term"><code># Inspect on each Linux worker; read-only.
+sysctl fs.inotify.max_user_instances fs.inotify.max_user_watches
+journalctl -u containerd --since "10 minutes ago" --no-pager</code></pre>
+          <p data-lang="en">
+            The repository provides an optional
+            <a
+              href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/hack/inotify-daemonset.yaml"
+              >inotify tuning DaemonSet</a
+            >, installed separately from Helm. It maintains minimums of
+            <strong>4,096 instances and 1,048,576 watches</strong>, preserves
+            higher values and reapplies them every 60 seconds, including on
+            replacement Linux workers. It changes host sysctls and needs
+            privileged host access; no kubelet restart is needed. Removing it
+            does not restore previous values. Choose and persist a host policy
+            appropriate to your workloads; neither its minimums nor the
+            benchmark’s 62,800 are a universal device-capacity formula.
+            <a href="https://man7.org/linux/man-pages/man7/inotify.7.html"
+              >Linux inotify limits</a
+            >.
+          </p>
+          <p data-lang="de">
+            Das Repository enthält ein optionales
+            <a
+              href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/hack/inotify-daemonset.yaml"
+              >Inotify-Tuning-DaemonSet</a
+            >, separat von Helm installiert. Es hält mindestens
+            <strong>4.096 Instanzen und 1.048.576 Watches</strong>, erhält
+            höhere Werte und setzt die Mindestwerte alle 60 Sekunden erneut,
+            auch auf Ersatz-Linux-Workern. Es ändert Host-Sysctls und benötigt
+            privilegierten Hostzugriff; kein Kubelet-Neustart ist nötig.
+            Entfernen stellt frühere Werte nicht wieder her. Eine passende
+            Host-Policy wählen und dauerhaft hinterlegen; weder diese
+            Mindestwerte noch die 62.800 des Benchmarks sind eine allgemeine
+            Geräte-Kapazitätsformel.
+            <a href="https://man7.org/linux/man-pages/man7/inotify.7.html"
+              >Linux-Inotify-Limits</a
+            >.
+          </p>
+        </div>
+        <div id="api-pressure">
+          <h3 data-lang="en">2 · API: make an observation cheap.</h3>
+          <h3 data-lang="de">2 · API: eine Beobachtung günstig machen.</h3>
+          <p data-lang="en">
+            Every device adds more than one Pod: Nodes, Links, plans,
+            Deployments, ReplicaSets, mounted objects, Services and status
+            updates all create work. More replicas or more workers do not remove
+            that object workload. We reduced unnecessary reads, repeated
+            computation and writes at their source.
+          </p>
+          <p data-lang="de">
+            Jedes Gerät erzeugt mehr als einen Pod: Nodes, Links, Pläne,
+            Deployments, ReplicaSets, gemountete Objekte, Services und
+            Statusupdates verursachen Arbeit. Mehr Replicas oder Worker
+            beseitigen diese Objektlast nicht. Wir haben unnötige Lesezugriffe,
+            wiederholte Berechnungen und Schreibzugriffe an ihrer Quelle
+            reduziert.
+          </p>
+          <div class="diagram" data-lang="en">
+            <div class="diagram-title">
+              <b>Readiness no longer repeats the whole desired-state path</b>
+            </div>
+            <pre class="mermaid">
+flowchart TD
+ A[Pod or Node status event] --&gt; B{Desired inputs changed?}
+ B --&gt;|No and cached reconciliation valid| C[Observe readiness and aggregate progress]
+ B --&gt;|Yes or owned drift or validation due| D[Full desired-state reconciliation]
+ D --&gt; E[Indexed references and metadata-only ownership inventory]
+ C --&gt; F[Coalesced status and changed directory shards]
+ E --&gt; F
+ F --&gt; G[Fewer API writes and repeated reads]
+ G --&gt; H[Less competition with kubelet mounts and CNI datastore work]</pre
+            >
+          </div>
+          <div class="diagram" data-lang="de">
+            <div class="diagram-title">
+              <b
+                >Bereitschaft wiederholt nicht mehr den ganzen
+                Sollzustandspfad</b
+              >
+            </div>
+            <pre class="mermaid">
+flowchart TD
+ A[Pod- oder Node-Statusereignis] --&gt; B{Solleingaben geändert?}
+ B --&gt;|Nein und letzter Abgleich gültig| C[Bereitschaft beobachten und Fortschritt bündeln]
+ B --&gt;|Ja oder Drift oder Vollprüfung fällig| D[Vollständiger Sollzustandsabgleich]
+ D --&gt; E[Referenz-Indizes und Eigentumsinventar nur aus Metadaten]
+ C --&gt; F[Gebündelter Status und nur geänderte Verzeichnis-Shards]
+ E --&gt; F
+ F --&gt; G[Weniger API-Schreibzugriffe und wiederholte Lesezugriffe]
+ G --&gt; H[Weniger Konkurrenz mit Kubelet-Mounts und CNI-Datastore-Arbeit]</pre
+            >
+          </div>
+          <ul>
+            <li data-lang="en">
+              <strong>Separate observation from desired state.</strong> Status
+              events reuse successful reconciliation instead of replanning,
+              recompiling the Topology or rereading immutable entropy every
+              time. Ownership, input changes, drift and periodic validation
+              still force the necessary checks.
+            </li>
+            <li data-lang="de">
+              <strong>Beobachtung vom Sollzustand trennen.</strong>
+              Statusereignisse verwenden einen erfolgreichen Abgleich wieder,
+              statt jedes Mal neu zu planen, die Topology zu übersetzen oder
+              unveränderliche Entropie erneut zu lesen. Eigentümerschaft,
+              Eingabeänderungen, Drift und periodische Validierung erzwingen
+              weiterhin die nötigen Prüfungen.
+            </li>
+            <li data-lang="en">
+              <strong>Batch and index reads.</strong> Topology ownership checks
+              fetch authoritative metadata by resource kind instead of one full
+              object per child. Payload-reference indexes find affected Nodes
+              directly. The Link controller shares one namespace inventory per
+              queue pass. Probe-Secret cleanup uses cached inventory, while
+              active credential reads remain authoritative and deletions retain
+              UID/resource-version preconditions.
+            </li>
+            <li data-lang="de">
+              <strong>Lesezugriffe bündeln und indizieren.</strong>
+              Topology-Eigentumsprüfungen laden autoritative Metadaten pro
+              Ressourcentyp statt ein vollständiges Objekt pro Kindressource.
+              Payload-Referenzindizes finden betroffene Nodes direkt. Der
+              Link-Controller teilt ein Namespace-Inventar pro Queue-Durchlauf.
+              Probe-Secret-Bereinigung nutzt gecachtes Inventar; aktive
+              Credentials werden weiterhin autoritativ gelesen und Löschungen
+              behalten UID-/Resource-Version-Vorbedingungen.
+            </li>
+            <li data-lang="en">
+              <strong>Suppress unnecessary writes.</strong> Initial informer
+              replay and unchanged resyncs no longer first mark healthy Nodes
+              unready. Routine successful progress no longer emits an Event per
+              milestone. Peer-directory changes coalesce for 250ms; Topology
+              progress for two seconds. Real failures, lifecycle changes and
+              final readiness are still reported.
+            </li>
+            <li data-lang="de">
+              <strong>Unnötige Schreibzugriffe vermeiden.</strong> Initiales
+              Informer-Replay und unveränderte Resyncs setzen gesunde Nodes
+              nicht mehr zuerst auf unbereit. Erfolgreicher Routinefortschritt
+              erzeugt nicht mehr pro Meilenstein ein Event.
+              Peer-Verzeichnisänderungen werden 250ms gebündelt,
+              Topology-Fortschritt zwei Sekunden. Echte Fehler,
+              Lifecycle-Änderungen und finale Bereitschaft werden weiterhin
+              gemeldet.
+            </li>
+          </ul>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>
+                    Recorded 50-device comparison / Aufgezeichneter
+                    50-Geräte-Vergleich
+                  </th>
+                  <th>Before / Vorher</th>
+                  <th>After / Nachher</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Successful Secret GETs</td>
+                  <td>1,183</td>
+                  <td>351</td>
+                </tr>
+                <tr>
+                  <td>Node / NodeProfile namespace LISTs</td>
+                  <td>407</td>
+                  <td>4</td>
+                </tr>
+                <tr>
+                  <td>Controller Event occurrences</td>
+                  <td>458</td>
+                  <td>156</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p data-lang="en">
+            These captured counters are evidence of less work, not a per-feature
+            speedup measurement; API counters include other clients and the
+            earlier window had a five-second tail. Some scans use informer
+            memory rather than the API. Skipping needless Pod copies also
+            reduces allocation and garbage collection: a 200-device CPU profile
+            had 41% of samples in background GC, prompting the fresh-start
+            cleanup fast path. The combined 1,000-device run subsequently
+            reduced IPAM GET/PUT means from 175/207ms to 9.9/19.3ms and queue
+            rejections from 296 to zero. It does not isolate which change caused
+            each gain.
+          </p>
+          <p data-lang="de">
+            Diese Zähler belegen weniger Arbeit, keine Zeitersparnis pro
+            Einzeländerung; API-Zähler enthalten andere Clients und das frühere
+            Zeitfenster hatte fünf Sekunden Nachlauf. Manche Scans nutzen
+            Informer-Speicher statt der API. Unnötige Pod-Kopien zu vermeiden
+            senkt auch Allokation und Garbage Collection: Ein CPU-Profil mit 200
+            Geräten hatte 41 % der Samples in Hintergrund-GC und führte zum
+            verkürzten Bereinigungspfad beim Neuaufbau. Im kombinierten
+            1.000-Geräte-Lauf sanken anschließend mittlere IPAM-GET-/PUT-Zeiten
+            von 175/207ms auf 9,9/19,3ms und Queue-Abweisungen von 296 auf null.
+            Welche Änderung welchen Gewinn verursachte, ist damit nicht
+            isoliert.
+          </p>
+        </div>
+        <div id="disk-pressure">
+          <h3 data-lang="en">
+            3 · Disk: share bytes without sharing the Pod’s file.
+          </h3>
+          <h3 data-lang="de">
+            3 · Disk: Bytes teilen, ohne die Pod-Datei zu teilen.
+          </h3>
+          <p data-lang="en">
+            The preparation container used to copy an approximately 66 MiB
+            runtime executable into every Pod. About 900 copies consumed roughly
+            60 GiB on a 98 GiB root filesystem. One earlier trial stopped at
+            1,897 Ready devices after DiskPressure blocked completion. Deleting
+            that namespace reduced filesystem usage from 82 GiB to 25 GiB. A lab
+            with no PVCs can still exhaust local disk through emptyDir data,
+            images and writable layers.
+          </p>
+          <p data-lang="de">
+            Der Vorbereitungscontainer kopierte früher ein etwa 66 MiB großes
+            Runtime-Binary in jeden Pod. Rund 900 Kopien verbrauchten etwa 60
+            GiB auf einem 98-GiB-Root-Dateisystem. Ein früherer Versuch blieb
+            bei 1.897 bereiten Geräten stehen, nachdem DiskPressure den
+            Abschluss blockierte. Das Löschen des Namespace senkte die
+            Dateisystembelegung von 82 GiB auf 25 GiB. Auch ohne PVCs kann ein
+            Lab die lokale Platte durch emptyDir-Daten, Images und
+            Schreibschichten füllen.
+          </p>
+          <div class="diagram" data-lang="en">
+            <div class="diagram-title">
+              <b>One verified host copy, independent Pod files</b>
+            </div>
+            <pre class="mermaid">
+flowchart TD
+ I[Runtime image binary] --&gt; C[Content-verified cache on the host filesystem]
+ C --&gt;|Reflink when supported| A[Pod A private read-only file]
+ C --&gt;|Reflink when supported| B[Pod B private read-only file]
+ A -.-&gt; S[Same physical extents - separate inodes and metadata]
+ B -.-&gt; S
+ C --&gt;|Unsupported filesystem| F[Ordinary copy into each Pod]
+ F --&gt; D[Budget disk space per Pod]
+ C --&gt; L[Bounded cache: four versions - at most 256 MiB each]</pre
+            >
+          </div>
+          <div class="diagram" data-lang="de">
+            <div class="diagram-title">
+              <b>Eine geprüfte Host-Kopie, unabhängige Pod-Dateien</b>
+            </div>
+            <pre class="mermaid">
+flowchart TD
+ I[Runtime-Binary aus dem Image] --&gt; C[Inhaltsgeprüfter Cache auf dem Host-Dateisystem]
+ C --&gt;|Reflink wenn unterstützt| A[Pod A eigene schreibgeschützte Datei]
+ C --&gt;|Reflink wenn unterstützt| B[Pod B eigene schreibgeschützte Datei]
+ A -.-&gt; S[Gleiche physische Blöcke - eigene Inodes und Metadaten]
+ B -.-&gt; S
+ C --&gt;|Dateisystem unterstützt es nicht| F[Normale Kopie in jeden Pod]
+ F --&gt; D[Plattenplatz pro Pod einplanen]
+ C --&gt; L[Begrenzter Cache: vier Versionen - jeweils höchstens 256 MiB]</pre
+            >
+          </div>
+          <p data-lang="en">
+            Direct cloning from the container image layer to a Pod volume can
+            cross filesystem boundaries. Staging one verified copy on the host
+            filesystem enables <code>FICLONE</code> where the cache and Pod
+            storage support shared extents. Applications mount only their
+            private read-only file; they do not mount the host cache. Each file
+            keeps independent metadata and SELinux labeling. XFS extent
+            inspection confirmed that the cache and two different Pod inodes
+            referenced identical shared physical blocks.
+          </p>
+          <p data-lang="de">
+            Direktes Klonen aus der Container-Imageschicht in ein Pod-Volume
+            kann Dateisystemgrenzen überschreiten. Eine geprüfte Kopie auf dem
+            Host-Dateisystem ermöglicht <code>FICLONE</code>, wenn Cache und
+            Pod-Speicher gemeinsame Extents unterstützen. Anwendungen mounten
+            nur ihre private schreibgeschützte Datei, nicht den Host-Cache. Jede
+            Datei behält unabhängige Metadaten und SELinux-Labels.
+            XFS-Extent-Prüfungen bestätigten identische gemeinsam genutzte
+            physische Blöcke für den Cache und zwei verschiedene Pod-Inodes.
+          </p>
+          <div class="callout" data-lang="en">
+            <strong>The complete run matters:</strong> with the combined c9s
+            improvements, management enabled and unchanged kernels, all 1,900
+            devices and ring links became Ready in 1,042.0s. Every device passed
+            data-link and management IP/name checks; there were no
+            workload-container restarts or DiskPressure. The smaller host’s root
+            filesystem stayed at 30% used. This proves the combined path could
+            finish that lab; it is not an isolated disk or kernel speed
+            comparison.
+          </div>
+          <div class="callout" data-lang="de">
+            <strong>Entscheidend ist der vollständige Lauf:</strong> Mit den
+            kombinierten c9s-Verbesserungen, aktiviertem Management und
+            unveränderten Kerneln wurden alle 1.900 Geräte und Ringlinks in
+            1.042,0s bereit. Jedes Gerät bestand Datenlink- und
+            Management-IP-/Namen-Prüfungen; es gab weder
+            Workload-Container-Restarts noch DiskPressure. Das Root-Dateisystem
+            des kleineren Hosts blieb bei 30 % Belegung. Das belegt den
+            erfolgreichen Abschluss dieses Labs mit dem Gesamtstand, keinen
+            isolierten Disk- oder Kernel-Zeitvergleich.
+          </div>
+        </div>
+        <div id="host-experiments">
+          <h3 data-lang="en">
+            What we investigated but did not keep as a host change
+          </h3>
+          <h3 data-lang="de">
+            Was wir untersucht, aber nicht als Host-Änderung behalten haben
+          </h3>
+          <p data-lang="en">
+            The improvements above reduce kernel work from c9s. They do not
+            require a replacement host kernel. Later experiments explored the
+            remaining kubelet/containerd costs; their results belong beside the
+            successful changes so they are not mistaken for deployment
+            prerequisites.
+          </p>
+          <p data-lang="de">
+            Die obigen Verbesserungen reduzieren Kernel-Arbeit durch c9s. Sie
+            erfordern keinen Austausch des Host-Kernels. Spätere Versuche
+            untersuchten verbleibende Kubelet-/Containerd-Kosten; ihre
+            Ergebnisse gehören neben die erfolgreichen Änderungen, damit sie
+            nicht als Installationsvoraussetzungen missverstanden werden.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Experiment</th>
+                  <th>Observed outcome / Beobachtetes Ergebnis</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Kubelet snapshot comparison shortcut</td>
+                  <td>
+                    <span data-lang="en"
+                      >Temporary custom kubelet: Pod snapshot merge CPU fell
+                      from 28.08 to 0.92 CPU-seconds in 40-second profiles. The
+                      50-device total was 80.4s stock versus 88.8s patched; no
+                      overall startup speedup. Stock binary and configuration
+                      restored.</span
+                    ><span data-lang="de"
+                      >Temporäres eigenes Kubelet: CPU für Pod-Snapshot-Merge
+                      sank in 40-Sekunden-Profilen von 28,08 auf 0,92
+                      CPU-Sekunden. Die 50-Geräte-Gesamtzeit lag bei 80,4s mit
+                      Standard und 88,8s mit Patch; kein Gesamtzeitgewinn.
+                      Standard-Binary und Konfiguration wiederhergestellt.</span
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td>PodAndContainerStatsFromCRI</td>
+                  <td>
+                    <span data-lang="en"
+                      >Moved accounting work from kubelet to containerd, but
+                      sampled combined CPU increased from about 5.45 to 8.47
+                      cores. Reverted; it was not retained as a scaling
+                      setting.</span
+                    ><span data-lang="de"
+                      >Verlagerte Abrechnungsarbeit vom Kubelet zu Containerd,
+                      aber die gemessene gemeinsame CPU stieg von etwa 5,45 auf
+                      8,47 Kerne. Zurückgesetzt; nicht als
+                      Skalierungseinstellung beibehalten.</span
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td>Projected runtime input volumes</td>
+                  <td>
+                    <span data-lang="en"
+                      >Experimental 14 → 11 volumes per BusyBox Pod. First
+                      all-Ready improved by only about 2.6%; the late-cohort
+                      scheduled-to-kubelet delay remained near 48s. Not part of
+                      revision 08b94a3 and not a demonstrated solution to the
+                      slow tail.</span
+                    ><span data-lang="de"
+                      >Experimentell 14 → 11 Volumes pro BusyBox-Pod. Erste
+                      vollständige Bereitschaft nur etwa 2,6 % früher; die späte
+                      Verzögerung vom Scheduling zum Kubelet blieb bei rund 48s.
+                      Kein Bestandteil von Revision 08b94a3 und keine belegte
+                      Lösung des langsamen Nachlaufs.</span
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p data-lang="en">
+          Implementation:
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/internal/directruntime/neighbor_inventory_linux.go"
+            >neighbor inventory</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/internal/directruntime/wire_linux.go"
+            >carrier sampling</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/node/externalwatch.go"
+            >input-event handling</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/node/directprobes.go"
+            >probe-Secret cleanup</a
+          >, and
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/internal/directruntime/lifecycle_cache_linux.go"
+            >binary cache</a
+          >. The figures above are transcribed from retained September benchmark
+          reports; raw local captures are not published with this site.
+        </p>
+        <p data-lang="de">
+          Implementierung:
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/internal/directruntime/neighbor_inventory_linux.go"
+            >Nachbar-Inventar</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/internal/directruntime/wire_linux.go"
+            >Carrier-Abfrage</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/node/externalwatch.go"
+            >Input-Event-Verarbeitung</a
+          >,
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/controllers/node/directprobes.go"
+            >Probe-Secret-Bereinigung</a
+          >
+          und
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/internal/directruntime/lifecycle_cache_linux.go"
+            >Binary-Cache</a
+          >. Die Zahlen stammen aus aufbewahrten September-Benchmarkberichten;
+          lokale Rohaufzeichnungen werden mit dieser Website nicht
+          veröffentlicht.
+        </p>
       </section>
       <section id="evidence">
         <div class="section-head">
-          <div class="section-index">05 · Evidence</div>
+          <div class="section-index">Benchmark evidence</div>
           <div>
             <h2 data-lang="en">
               What the measurements do and do not establish.
@@ -770,6 +2944,238 @@ spec:
           Stichproben, Messfenster und alle Werte stehen im Originalleitfaden.
         </p>
       </section>
+      <section id="new-results">
+        <div class="section-head">
+          <div class="section-index">New Results</div>
+          <div>
+            <h2 data-lang="en">
+              Higher scale, with the test boundaries visible.
+            </h2>
+            <h2 data-lang="de">Mehr Skalierung, mit sichtbaren Testgrenzen.</h2>
+          </div>
+        </div>
+        <p data-lang="en">
+          These are recorded local experiments from 21–22 September, not a claim
+          about what is running now or a universal maximum.
+          <strong
+            >Fresh deployment and expansion timings have different starting
+            points.</strong
+          >
+          These summaries are transcribed from retained local reports. Raw
+          benchmark captures are not published with this site. These runs do not
+          replace the broad e2e suite.
+        </p>
+        <p data-lang="de">
+          Dies sind aufgezeichnete lokale Experimente vom 21.–22. September,
+          keine Aussage über den aktuellen Clusterzustand oder ein allgemeines
+          Maximum.
+          <strong
+            >Neuaufbau und Erweiterung haben unterschiedliche
+            Startpunkte.</strong
+          >
+          Diese Zusammenfassungen stammen aus aufbewahrten lokalen Berichten.
+          Rohe Benchmark-Aufzeichnungen werden mit dieser Website nicht
+          veröffentlicht. Diese Läufe ersetzen nicht die vollständige E2E-Suite.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Workload</th>
+                <th>Run and timing / Lauf und Zeit</th>
+                <th>Validation and limits / Prüfung und Grenzen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>200 BusyBox + 200 ring Links</td>
+                <td>
+                  <span data-lang="en"
+                    >Fresh standalone resources, KinD, 4 planners, Config batch
+                    100. All Nodes Ready in 149.6s.</span
+                  ><span data-lang="de"
+                    >Neue Einzelressourcen, KinD, 4 Planner, Config-Batch 100.
+                    Alle Nodes Ready nach 149,6s.</span
+                  >
+                </td>
+                <td>
+                  <span data-lang="en"
+                    >400 directional data-link checks / 800 packets passed;
+                    management reachability not tested.</span
+                  ><span data-lang="de"
+                    >400 gerichtete Datenlink-Prüfungen / 800 Pakete bestanden;
+                    Management-Erreichbarkeit nicht geprüft.</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td>1,900 BusyBox + ring Links</td>
+                <td>
+                  <span data-lang="en"
+                    >Fresh projected-input experiment, 2 hosts, 8 planners,
+                    batch 100, /21 management, 10m / 32Mi application requests,
+                    no PVCs. First all-Ready: 1,015.2s.</span
+                  ><span data-lang="de"
+                    >Neuer Versuch mit projizierten Inputs, 2 Hosts, 8 Planner,
+                    Batch 100, /21-Management, 10m / 32Mi Anwendungs-Requests,
+                    keine PVCs. Erste vollständige Bereitschaft: 1.015,2s.</span
+                  >
+                </td>
+                <td>
+                  <span data-lang="en"
+                    >1,900/1,900 devices passed data links and management
+                    IP/name checks; 974 cross-host ring links, no restarts.
+                    Readiness briefly regressed before traffic
+                    verification.</span
+                  ><span data-lang="de"
+                    >1.900/1.900 Geräte bestanden Datenlink- und
+                    Management-IP-/Namen-Prüfungen; 974 Host-übergreifende
+                    Ringlinks, keine Restarts. Vor der Traffic-Prüfung fiel die
+                    Bereitschaft kurz zurück.</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td>100 SR Linux + 4 clients</td>
+                <td>
+                  <span data-lang="en"
+                    >Fresh host-gated run on 2 hosts, batch 100 / host cap 50.
+                    All Pods Ready at 125.29s after apply started.</span
+                  ><span data-lang="de"
+                    >Neuer Lauf mit Host-Gate auf 2 Hosts, Batch 100 /
+                    Host-Limit 50. Alle Pods Ready 125,29s nach
+                    Apply-Start.</span
+                  >
+                </td>
+                <td>
+                  <span data-lang="en"
+                    >416 BGP endpoints; 12 client pairs; 104 management checks;
+                    all 100 router loopbacks reachable. Observed boot peaks 49 /
+                    50; two recorded container restarts.</span
+                  ><span data-lang="de"
+                    >416 BGP-Endpunkte; 12 Client-Paare; 104
+                    Management-Prüfungen; alle 100 Router-Loopbacks erreichbar.
+                    Beobachtete Boot-Spitzen 49 / 50; zwei erfasste
+                    Container-Restarts.</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td>250 SR Linux + 4 clients</td>
+                <td>
+                  <span data-lang="en"
+                    >Expansion from 200 routers, +50; four superspine Pods
+                    replaced. Readiness after expansion: 111.99s. Not a fresh
+                    250-router startup.</span
+                  ><span data-lang="de"
+                    >Erweiterung von 200 Routern um 50; vier Superspine-Pods
+                    ersetzt. Bereitschaft nach Erweiterung: 111,99s. Kein
+                    Neuaufbau von 250 Routern.</span
+                  >
+                </td>
+                <td>
+                  <span data-lang="en"
+                    >1,024 BGP endpoints, 12 client pairs, 254 management checks
+                    and 250 loopbacks passed. Two new clabwire restarts.</span
+                  ><span data-lang="de"
+                    >1.024 BGP-Endpunkte, 12 Client-Paare, 254
+                    Management-Prüfungen und 250 Loopbacks bestanden. Zwei neue
+                    clabwire-Restarts.</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td>325 SR-SIM + 4 clients</td>
+                <td>
+                  <span data-lang="en"
+                    >Expansion stage to 325 routers. All 329 Pods and Nodes
+                    Ready; 102.34s after this apply. Six existing Pods
+                    replaced.</span
+                  ><span data-lang="de"
+                    >Erweiterungsstufe auf 325 Router. Alle 329 Pods und Nodes
+                    Ready; 102,34s nach diesem Apply. Sechs bestehende Pods
+                    ersetzt.</span
+                  >
+                </td>
+                <td>
+                  <span data-lang="en"
+                    >1,364 BGP endpoints and 337/337 traffic checks passed; no
+                    new restarts or recorded health warnings. Only about 2.4 /
+                    2.1 GiB request headroom remained on the two hosts.</span
+                  ><span data-lang="de"
+                    >1.364 BGP-Endpunkte und 337/337 Traffic-Prüfungen
+                    bestanden; keine neuen Restarts oder erfassten
+                    Gesundheitswarnungen. Nur etwa 2,4 / 2,1 GiB Request-Reserve
+                    auf den beiden Hosts übrig.</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td>400 FRR + 4 clients</td>
+                <td>
+                  <span data-lang="en"
+                    >Expansion stage; all 404 Pods and Nodes Ready after 711.2s.
+                    Six existing Pods replaced.</span
+                  ><span data-lang="de"
+                    >Erweiterungsstufe; alle 404 Pods und Nodes Ready nach
+                    711,2s. Sechs bestehende Pods ersetzt.</span
+                  >
+                </td>
+                <td>
+                  <span data-lang="en"
+                    >1,680 BGP endpoints and 412/412 traffic checks passed. One
+                    application restart and one startup-gate restart generated
+                    health warnings; not a clean operating ceiling.</span
+                  ><span data-lang="de"
+                    >1.680 BGP-Endpunkte und 412/412 Traffic-Prüfungen
+                    bestanden. Ein Anwendungs- und ein Startup-Gate-Restart
+                    erzeugten Gesundheitswarnungen; keine störungsfrei
+                    validierte Betriebsgrenze.</span
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout" data-lang="en">
+          <strong
+            >The 1,900-device experiment did not solve the slow tail.</strong
+          >
+          Reducing Pod volumes from 14 to 11 changed first-Ready from 1,042.0s
+          to 1,015.2s (about 2.6%). Around cohort 1,500, median
+          scheduled-to-kubelet delay remained about 48s; preparation stayed
+          around 1s. That is not evidence of a meaningful end-to-end speedup.
+          The projected-input variation was recorded as uncommitted experimental
+          code; it is not part of the behavior claimed for revision 08b94a3.
+        </div>
+        <div class="callout" data-lang="de">
+          <strong
+            >Der 1.900-Geräte-Versuch löste den langsamen Nachlauf
+            nicht.</strong
+          >
+          Weniger Pod-Volumes (14 auf 11) änderten die erste vollständige
+          Bereitschaft von 1.042,0s auf 1.015,2s (etwa 2,6 %). Bei Kohorte 1.500
+          blieb die mediane Verzögerung vom Scheduling zum Kubelet bei rund 48s;
+          Vorbereitung weiter bei rund 1s. Das belegt keinen wesentlichen
+          Gesamtzeitgewinn. Die Variante mit projizierten Inputs war als nicht
+          committeter Versuch dokumentiert und gehört nicht zum hier
+          zugesicherten Verhalten von Revision 08b94a3.
+        </div>
+        <p data-lang="en">
+          A separate 500-SR-Linux-router attempt on a 50-worker cluster did not
+          complete verification: the last recorded snapshot had 433 Pods and 51
+          Ready before API access failed. Batch 100 had not limited all
+          Node/Link/API work. The endpoint outage was observed; its root cause
+          was not established..
+        </p>
+        <p data-lang="de">
+          Ein separater Versuch mit 500 SR-Linux-Routern auf 50 Workern schloss
+          die Validierung nicht ab: Der letzte Snapshot zeigte 433 Pods und 51
+          Ready, bevor der API-Zugriff ausfiel. Batch 100 begrenzte nicht die
+          gesamte Node-/Link-/API-Arbeit. Der Endpunktausfall wurde beobachtet,
+          seine Ursache nicht festgestellt..
+        </p>
+      </section>
       <section id="measure">
         <div class="section-head">
           <div class="section-index">06 · Diagnostics</div>
@@ -859,6 +3265,142 @@ go tool pprof manager-cpu.pprof</code></pre>
           Der vollständige Leitfaden unten enthält Exportbefehle,
           Eingabeanforderungen, Aufräumschritte und Grenzen des Vergleichs.
         </p>
+        <div class="diagram" data-lang="en">
+          <div class="diagram-title">
+            <b>Diagnose the waiting stage before turning a knob</b>
+          </div>
+          <pre class="mermaid">
+flowchart TD
+ A[Which milestone is late?] --&gt; B[No plan]
+ A --&gt; C[No Pod or unscheduled]
+ A --&gt; D[Scheduled - no sandbox]
+ A --&gt; E[Sandbox ready - primary not started]
+ A --&gt; F[Primary started - lab or traffic not ready]
+ B --&gt; B1[Check admission then planner queue and inputs]
+ C --&gt; C1[Check Deployment queue - requests - slots - placement]
+ D --&gt; D1[Check kubelet - mounts - runtime - CNI and API latency]
+ E --&gt; E1[Check host gate - image pull - boot CPU - startup probe]
+ F --&gt; F1[Check links - device config - BGP - real traffic]</pre
+          >
+        </div>
+        <div class="diagram" data-lang="de">
+          <div class="diagram-title">
+            <b>Zuerst die wartende Phase finden, dann einstellen</b>
+          </div>
+          <pre class="mermaid">
+flowchart TD
+ A[Welcher Meilenstein kommt spät?] --&gt; B[Kein Plan]
+ A --&gt; C[Kein Pod oder nicht eingeplant]
+ A --&gt; D[Eingeplant - keine Sandbox]
+ A --&gt; E[Sandbox bereit - Primary nicht gestartet]
+ A --&gt; F[Primary gestartet - Lab oder Traffic nicht bereit]
+ B --&gt; B1[Freigabe prüfen dann Planner-Queue und Inputs]
+ C --&gt; C1[Deployment-Queue - Requests - Slots - Platzierung prüfen]
+ D --&gt; D1[Kubelet - Mounts - Runtime - CNI und API-Latenz prüfen]
+ E --&gt; E1[Host-Gate - Image-Pull - Boot-CPU - Startup-Probe prüfen]
+ F --&gt; F1[Links - Gerätekonfiguration - BGP - echten Traffic prüfen]</pre
+          >
+        </div>
+        <h3 data-lang="en">A practical scaling sequence</h3>
+        <h3 data-lang="de">Ein praktischer Weg zum größeren Lab</h3>
+        <ol>
+          <li data-lang="en">
+            <strong>Establish a representative small lab.</strong> Use the
+            intended NOS, links, configuration, storage and traffic. Record boot
+            CPU and peak/steady RAM, helper restarts and data-plane checks.
+            Check host disk, process/file limits and inotify errors when runtime
+            logs point there.
+          </li>
+          <li data-lang="de">
+            <strong>Ein repräsentatives kleines Lab aufbauen.</strong> Geplantes
+            NOS, Links, Konfiguration, Storage und Traffic verwenden. Boot-CPU,
+            Spitzen-/Dauer-RAM, Helfer-Restarts und Datenpfad-Prüfungen
+            erfassen. Host-Platte, Prozess-/Dateilimits und Inotify-Fehler
+            prüfen, wenn Runtime-Logs darauf hinweisen.
+          </li>
+          <li data-lang="en">
+            <strong>Budget headroom and publish complete intent.</strong>
+            Include all Pod components, address families, Services and storage.
+            Prefer shared NodeProfiles and standalone objects if a Topology
+            payload becomes unwieldy. Splitting objects does not remove the
+            total control-plane workload.
+          </li>
+          <li data-lang="de">
+            <strong
+              >Reserve planen und vollständige Definitionen
+              veröffentlichen.</strong
+            >
+            Alle Pod-Komponenten, Adressfamilien, Services und Storage
+            einrechnen. Gemeinsame NodeProfiles und Einzelobjekte nutzen, wenn
+            eine Topology zu groß wird. Aufteilen beseitigt nicht die
+            Gesamtarbeit der Control Plane.
+          </li>
+          <li data-lang="en">
+            <strong>Set the two startup limits for different pressures.</strong>
+            Measure batch sizes for sandbox/API pressure and host limits for
+            device boots. A stuck batch needs investigation. A host cap of 50
+            already coincided with 98% sampled CPU in the 100-router run; it is
+            not automatically conservative.
+          </li>
+          <li data-lang="de">
+            <strong
+              >Die zwei Startlimits für unterschiedliche Lasten setzen.</strong
+            >
+            Batch-Größen für Sandbox-/API-Last und Host-Limits für Geräte-Boots
+            messen. Ein hängender Batch muss untersucht werden. Beim
+            100-Router-Lauf trat mit Host-Limit 50 bereits 98 % gemessene
+            CPU-Auslastung auf; der Wert ist nicht automatisch konservativ.
+          </li>
+          <li data-lang="en">
+            <strong>Increase in measured steps.</strong> Change one setting at a
+            time, retain raw timings, and stop increasing when sustained
+            resource pressure, restarts, API failures or traffic regressions
+            appear. Repeat comparable fresh runs before attributing a speedup.
+            Treat expansions and rolling replacements separately.
+          </li>
+          <li data-lang="de">
+            <strong>In gemessenen Schritten vergrößern.</strong> Jeweils eine
+            Einstellung ändern, Rohzeiten behalten und bei anhaltender
+            Ressourcenlast, Restarts, API-Fehlern oder schlechterem Traffic
+            nicht weiter vergrößern. Vergleichbare Neuläufe wiederholen, bevor
+            ein Zeitgewinn zugeschrieben wird. Erweiterungen und Rolling-Ersatz
+            separat betrachten.
+          </li>
+        </ol>
+        <p data-lang="en">
+          Start the lightweight watcher <strong>before applying</strong> the
+          lab, from the clabernetes checkout. Match the expected count to all
+          device workloads, including clients. It uses a Pod watch and periodic
+          host/CNI samples; final BGP and traffic tests run separately.
+        </p>
+        <p data-lang="de">
+          Den schlanken Watcher aus dem clabernetes-Checkout
+          <strong>vor dem Apply</strong> starten. Die erwartete Anzahl muss alle
+          Geräte-Workloads einschließlich Clients enthalten. Er nutzt einen
+          Pod-Watch und periodische Host-/CNI-Stichproben; finale BGP- und
+          Traffic-Tests laufen separat.
+        </p>
+        <pre class="term"><code>python3 hack/monitor_topology_startup.py \
+  --context YOUR_CONTEXT --namespace YOUR_LAB_NAMESPACE \
+  --count 104 --output build/benchmarks/my-lab/startup.json</code></pre>
+        <p data-lang="en">
+          Inspect only the failing scope first. Repeated full-object polling can
+          add load to the system you are measuring. Never print Secret contents
+          to diagnose mount synchronization. Useful read-only checks:
+        </p>
+        <p data-lang="de">
+          Zuerst nur den betroffenen Bereich untersuchen. Wiederholtes Polling
+          vollständiger Objekte kann das gemessene System zusätzlich belasten.
+          Für Mount-Synchronisation keine Secret-Inhalte ausgeben. Nützliche
+          lesende Prüfungen:
+        </p>
+        <pre
+          class="term"
+        ><code>kubectl -n YOUR_MANAGER_NAMESPACE get configs.c9s.run clabernetes -o yaml
+kubectl -n YOUR_LAB_NAMESPACE describe pod YOUR_POD
+kubectl -n YOUR_LAB_NAMESPACE logs YOUR_POD -c startup-gate --tail=40
+kubectl -n YOUR_LAB_NAMESPACE logs YOUR_POD -c clabwire --tail=80
+kubectl top nodes</code></pre>
       </section>
       <section id="original">
         <div class="section-head">
@@ -893,7 +3435,81 @@ go tool pprof manager-cpu.pprof</code></pre>
               start slowly. Measure the stages separately before changing
               planner concurrency or worker capacity.
             </p>
+            <h3>Choose resource granularity for large labs</h3>
+            <p>
+              Prefer standalone <code>Node</code>, <code>Link</code>, and shared
+              <code>NodeProfile</code> resources for large labs when an embedded
+              Topology definition becomes unwieldy. This distributes desired
+              state across smaller objects rather than repeatedly storing and
+              watching one large definition. There is no hard 100-node cutoff:
+              configuration size, links, and payloads determine object size and
+              control-plane cost. Splitting the definition does not remove the
+              total cost of creating, watching, and reconciling all of those
+              resources.
+            </p>
+            <p>
+              The Config rollout policies below apply directly to standalone
+              Nodes across namespaces; no Topology object or Topology-owned
+              labels are required. Topology rollout policy is an additional
+              scope for users who choose that resource. Both paths share the
+              same primary Pod admission and per-host startup gate. For
+              independently authored resources, publish the complete Node/Link
+              intent so planning sees the intended connections.
+            </p>
             <h3>Limit startup pressure with batches</h3>
+            <p>
+              Set an installation-wide limit on the
+              <code>clabernetes</code> Config in the manager namespace to cover
+              standalone <code>Node</code>/<code>Link</code> resources and
+              Topology-generated workloads:
+            </p>
+            <pre
+              class="term"
+            ><code class="language-yaml">apiVersion: c9s.run/v1alpha1
+kind: Config
+metadata:
+  name: clabernetes
+  namespace: c9s-e2e # use your manager namespace
+spec:
+  rollout:
+    batchSize: 100
+</code></pre>
+            <p>
+              For an existing Config, patch only <code>spec.rollout</code> to
+              preserve the other settings. Helm can bootstrap the same setting
+              with <code>globalConfig.rollout.batchSize=100</code>. The chart's
+              normal <code>merge</code> mode preserves an existing rollout
+              policy, including an explicit zero; use the Config to change it or
+              deliberately select bootstrap overwrite.
+            </p>
+            <p>
+              This limit is shared across namespaces. One admission queue
+              releases up to the configured number of new primary Pod groups,
+              then waits for all admitted workloads to report
+              <code>PodReadyToStartContainers=True</code>. It does not wait for
+              application or link readiness, which can depend on a later batch.
+              Streaming Node creation can produce smaller batches when fewer
+              Nodes are available at admission time. Publish complete Node and
+              Link intent; the limit paces startup, not resource creation.
+            </p>
+            <p>
+              Admission is persisted as
+              <code>c9s.run/startup-admitted</code> with the Node UID.
+              Shared-network members count as one Pod, and manager restarts
+              retain admission. Existing workloads are adopted without being
+              restarted. Removing the setting or setting it to zero disables the
+              global limit. Reducing it applies to later batches; it does not
+              revoke admission already granted. A stuck admitted workload blocks
+              the next global batch: fix or delete that Node, or explicitly
+              disable the limit to release pending Nodes. This controls initial
+              startup of new Node groups, not Kubernetes replacement Pods or
+              rolling changes to already admitted workloads.
+            </p>
+            <p>
+              The Topology setting below is an additional per-lab limit.
+              Omitting it or setting it to zero does not bypass an enabled
+              installation-wide limit.
+            </p>
             <p>
               Topology startup can release new device workloads in increments:
             </p>
@@ -942,15 +3558,15 @@ spec:
               diagnose a stalled batch.
             </p>
             <p>
-              This policy controls new workloads emitted by a Topology,
-              including newly added or recreated Node resources. It does not
-              pace rolling changes or replacement Pods for already admitted
-              Nodes, and it does not apply to independently authored Nodes.
-              Changing the size affects subsequent batches; it does not stop a
-              batch already admitted. Setting the size to
-              <code>0</code> releases all remaining held Nodes. The limit is per
-              Topology, so simultaneous labs can still create a larger combined
-              burst.
+              The per-Topology policy controls new workloads emitted by a
+              Topology, including newly added or recreated Node resources. It
+              does not pace rolling changes or replacement Pods for already
+              admitted Nodes. Independently authored Nodes use the Config policy
+              above. Changing the size affects subsequent batches; it does not
+              stop a batch already admitted. Setting the size to
+              <code>0</code> releases all remaining held Nodes. Without the
+              Config policy, this limit is per Topology, so simultaneous labs
+              can still create a larger combined burst.
             </p>
             <p>
               Batching trades some parallelism for lower peak load. The value
@@ -959,6 +3575,82 @@ spec:
               1,000-device run below; their individual contributions have not
               been isolated. Keep dual-stack enabled when comparing batch sizes.
             </p>
+            <h3>Limit simultaneous device boots per host</h3>
+            <p>
+              Sandbox readiness does not mean a network operating system has
+              finished booting. Combine the existing batches with
+              <code>maxConcurrentPerHost</code> on Config, Topology, or both:
+            </p>
+            <pre class="term"><code class="language-yaml">spec:
+  rollout:
+    batchSize: 100
+    maxConcurrentPerHost: 50
+</code></pre>
+            <p>
+              The Config limit counts all direct workloads across namespaces on
+              each Kubernetes host. A Topology limit additionally caps that lab
+              on each host; it cannot bypass the Config limit. Helm bootstraps
+              the Config field with
+              <code>globalConfig.rollout.maxConcurrentPerHost</code>. Zero or
+              omission disables that limit. This is a boot concurrency limit,
+              not a limit on the number of running devices.
+            </p>
+            <p>
+              New workloads receive a <code>startup-gate</code> init container.
+              Kubernetes schedules the Pod and creates its sandbox, then the
+              gate waits before preparation and device startup. Admission is
+              stored on the live Pod as
+              <code>c9s.run/startup-host-admitted</code> with that Pod's UID.
+              The gate reads the kubelet's Downward API projection without
+              polling the API server. Projection delivery can add a short delay
+              before a granted Pod starts. A slot remains occupied until the
+              primary application container passes its startup probe (<code
+                >started: true</code
+              >), independently of Pod/link readiness or BGP convergence.
+              Configure a device-local startup probe; a probe requiring later
+              peers can stall admission. Without a startup probe, Kubernetes
+              marks the primary started when it is running. Shared-network
+              containers count as one primary workload.
+            </p>
+            <p>
+              Successful grants survive manager restarts. Replacement Pods of
+              gated workloads need fresh grants. Changing a limit affects
+              pending admission without revoking existing grants or changing
+              existing Deployment templates. Enabling this option therefore
+              gates newly created workloads; it does not retrofit already
+              deployed workloads. Existing ungated device boots count against
+              the Config cap. Kubelet restarts of containers inside an already
+              admitted Pod are not independently gated. A stuck device retains
+              its slot: fix or remove it, or explicitly disable the limit to
+              release the queue. This does not pace creation of all Kubernetes
+              objects or CNI sandboxes; use <code>batchSize</code> alongside it
+              and measure host and API pressure.
+            </p>
+            <p>
+              Topology progress counts are coalesced over two seconds.
+              Generation, error, and lifecycle transitions, including final
+              readiness, are written immediately. Status uses a patch rather
+              than resending the embedded definition, and the ordinary write
+              path does not reread that definition. Kubernetes still persists
+              and distributes the whole changed object, so reducing write
+              frequency remains important.
+            </p>
+            <p>
+              For live measurements, start
+              <code>hack/monitor_topology_startup.py</code> before applying the
+              Topology. It uses one Pod watch, records startup milestones and
+              peak observed boots per host, and samples small host-usage and
+              Calico tables every 15 seconds. It avoids repeated full Pod and
+              Topology lists, backs off when a watch closes, and has a bounded
+              overall deadline. BGP and traffic validation run separately after
+              startup.
+            </p>
+            <pre
+              class="term"
+            ><code class="language-bash">python3 hack/monitor_topology_startup.py \
+  --context kubernetes-admin@new-zealand --namespace srl100-clos \
+  --count 104 --output build/benchmarks/srl100/startup.json
+</code></pre>
             <h3>Controller work and diagnostics</h3>
             <p>
               The controller retains a successful desired-state reconciliation
@@ -1180,12 +3872,7 @@ kubectl --context YOUR_CONTEXT -n YOUR_LAB get topology YOUR_TOPOLOGY -o json \
               warm, and previous test namespaces were removed before each timed
               run.
             </p>
-            <div
-              class="table-wrap"
-              tabindex="0"
-              role="region"
-              aria-label="Original guide data table"
-            >
+            <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -1335,12 +4022,7 @@ kubectl --context YOUR_CONTEXT -n YOUR_LAB get topology YOUR_TOPOLOGY -o json \
               unchanged. No controller code or Calico settings were changed for
               these runs.
             </p>
-            <div
-              class="table-wrap"
-              tabindex="0"
-              role="region"
-              aria-label="Original guide data table"
-            >
+            <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -1507,12 +4189,7 @@ kubectl --context YOUR_CONTEXT -n YOUR_LAB get topology YOUR_TOPOLOGY -o json \
               image, <code>/22</code> management network, 64Mi/10m requests, and
               absence of PVCs were retained.
             </p>
-            <div
-              class="table-wrap"
-              tabindex="0"
-              role="region"
-              aria-label="Original guide data table"
-            >
+            <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -1625,12 +4302,7 @@ kubectl --context YOUR_CONTEXT -n YOUR_LAB get topology YOUR_TOPOLOGY -o json \
               and no-PVC configuration were retained. All earlier benchmark
               namespaces and Pods were gone before submission.
             </p>
-            <div
-              class="table-wrap"
-              tabindex="0"
-              role="region"
-              aria-label="Original guide data table"
-            >
+            <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -1783,19 +4455,21 @@ kubectl --context YOUR_CONTEXT -n YOUR_LAB get topology YOUR_TOPOLOGY -o json \
         </details>
         <p data-lang="en">
           Source:
-          <a href="../clab/clabernetes/docs/guides/scaling-performance.md"
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/docs/guides/scaling-performance.md"
             >docs/guides/scaling-performance.md</a
-          >, copied from the local checkout on 21 September 2026. The guide
+          >, copied from local revision 08b94a3 on 22 September 2026. The guide
           text, commands, tables and references above are preserved in full.
           This is a static copy.
         </p>
         <p data-lang="de">
           Quelle:
-          <a href="../clab/clabernetes/docs/guides/scaling-performance.md"
+          <a
+            href="https://github.com/clabernetes/clabernetes/blob/08b94a311046ea3f37821e0d6402e8aaa17fae0e/docs/guides/scaling-performance.md"
             >docs/guides/scaling-performance.md</a
-          >, aus dem lokalen Checkout vom 21. September 2026. Text, Befehle,
-          Tabellen und Referenzen des Leitfadens sind oben vollständig erhalten.
-          Dies ist eine statische Kopie.
+          >, aus dem lokalen Stand 08b94a3 vom 22. September 2026. Text,
+          Befehle, Tabellen und Referenzen des Leitfadens sind oben vollständig
+          erhalten. Dies ist eine statische Kopie.
         </p>
       </section>
       <footer>
